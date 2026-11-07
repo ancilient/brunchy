@@ -1,0 +1,30 @@
+# Builds the React web prototype (Capacitor) APK on GitHub's servers.
+# Runs only by hand (Actions → Build Web Prototype APK → Run workflow), because the Flutter student app is the main app now.
+# Download "Brunchy-prototype-apk" from the finished run's Artifacts section.
+name: Build Web Prototype APK
+on:
+  workflow_dispatch:
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/web_prototype
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm install
+      - run: npm run lint
+        continue-on-error: true   # a type warning should not block the APK
+      - run: npm run apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Brunchy-prototype-apk
+          path: frontend/web_prototype/Brunchy.apk

@@ -1,0 +1,15 @@
+# Store text files with LF line endings in git, whatever each teammate's OS uses.
+* text=auto
+
+# Shell scripts and Gradle wrappers must keep LF or they fail on Linux/macOS and GitHub Actions.
+*.sh      text eol=lf
+gradlew   text eol=lf
+*.bat     text eol=crlf
+
+# Binary files: never touch.
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.pdf     binary
+*.jar     binary
+*.ttf     binary

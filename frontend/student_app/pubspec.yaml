@@ -1,0 +1,34 @@
+name: brunchy
+description: Brunchy campus canteen ordering app (Flutter version of the React app).
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+  flutter: '>=3.27.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Ranges, not exact versions, so `flutter pub get` picks the newest one that works with your Flutter.
+  shared_preferences: '>=2.2.0 <3.0.0'   # keeps orders, cart and login on the phone
+  google_fonts: '>=6.2.1 <9.0.0'         # Inter, Poppins, JetBrains Mono (same fonts as the React app)
+  flutter_svg: '>=2.0.10 <3.0.0'         # draws the Lucide icons
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: '>=0.13.1 <1.0.0'
+  flutter_lints: '>=4.0.0 <7.0.0'
+
+flutter:
+  uses-material-design: true
+
+# Same app icon as the React/Capacitor build (orange background, white logo). Run: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/icon-only.png
+  adaptive_icon_background: '#E63E11'
+  adaptive_icon_foreground: assets/icon-foreground.png
+  min_sdk_android: 21
