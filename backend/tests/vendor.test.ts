@@ -1,6 +1,6 @@
 import { io as connect } from 'socket.io-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { one, pool } from '../src/db/pool.js';
+import { exec, one, pool } from '../src/db/pool.js';
 import {
   VENDOR_BURGER,
   VENDOR_JUICE,
@@ -155,6 +155,37 @@ describe('vendor board and handover', () => {
     expect(mine.body.product.stockQuantity).toBe(12);
     const other = await client.patch('/vendor/products/201', { stockQuantity: 12 }, burger());
     expect(other.body.error.code).toBe('WRONG_STALL');
+  });
+
+  it('undo Ready works only right after marking Ready', async () => {
+    const bill = await readyBill();
+    const undo = await client.patch(`/vendor/bills/${bill.id}/status`, { status: 'preparing' }, burger());
+    expect(undo.body.bill.status).toBe('preparing');
+    await client.patch(`/vendor/bills/${bill.id}/status`, { status: 'ready' }, burger());
+    await exec(pool, 'UPDATE stall_orders SET ready_at = UTC_TIMESTAMP() - INTERVAL 1 MINUTE WHERE stall_order_id = ?', [bill.id]);
+    const late = await client.patch(`/vendor/bills/${bill.id}/status`, { status: 'preparing' }, burger());
+    expect(late.body.error.code).toBe('UNDO_WINDOW_EXPIRED');
+  });
+
+  it('shows my stall and all its items', async () => {
+    const stall = await client.get('/vendor/stall', burger());
+    expect(stall.body.stall).toMatchObject({ id: '1', name: 'Burger Hub', canteenName: 'Main Canteen' });
+    const products = await client.get('/vendor/products', burger());
+    expect(products.body.products.map((p: { name: string }) => p.name)).toEqual(['Cheese Burger', 'Chicken Burger', 'French Fries', 'Veg Burger']);
+    expect(products.body.products.every((p: { stallId: string }) => p.stallId === '1')).toBe(true);
+  });
+
+  it('emergency stop closes the stall and refunds orders not yet started; cooking ones stay', async () => {
+    const waiting = (await placePaidOrder(client, studentToken(), [{ productId: '102', qty: 1 }])).bills[0];
+    const cooking = (await placePaidOrder(client, studentToken(), [{ productId: '102', qty: 1 }])).bills[0];
+    await client.patch(`/vendor/bills/${cooking.id}/status`, { status: 'accepted' }, burger());
+    const r = await client.post('/vendor/stall/status', { action: 'emergency', reason: 'GAS_CUT' }, burger());
+    expect(r.body.stall.status).toBe('closed');
+    expect(r.body.refundedBillIds).toContain(waiting.id);
+    expect(r.body.preparingBillIds).toContain(cooking.id);
+    const refund = await one(pool, 'SELECT reason_code FROM refunds WHERE stall_order_id = ?', [waiting.id]);
+    expect(refund?.reason_code).toBe('STALL_EMERGENCY');
+    await client.post('/vendor/stall/status', { action: 'resume' }, burger());
   });
 
   it('the vendor gets the new bill live over the socket within moments of payment', async () => {

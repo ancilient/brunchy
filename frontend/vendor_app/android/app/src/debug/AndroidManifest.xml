@@ -4,4 +4,7 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Debug builds only: allow plain http:// to the local Brunchy backend (http://localhost:4000 or the PC's Wi-Fi IP).
+         Release builds keep Android's default (HTTPS only); production uses https://. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

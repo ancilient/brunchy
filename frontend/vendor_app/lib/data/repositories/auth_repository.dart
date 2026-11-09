@@ -5,12 +5,15 @@ import 'package:brunchy_vendor/data/models/vendor.dart';
 /// Abstract repository for authentication and session management.
 /// Concrete implementations: [MockAuthRepository] (dev) and a future DioAuthRepository (prod).
 abstract class AuthRepository {
-  /// [API-001] Authenticates a vendor with the backend.
-  /// Returns a named record containing the [Vendor] and a [token].
-  Future<({Vendor vendor, String token})> login({
-    required String name,
+  /// POST /auth/otp — sends a login code to the vendor's phone.
+  /// Returns the code itself when the backend runs in development (devCode), otherwise null.
+  Future<String?> requestOtp(String phone);
+
+  /// POST /auth/verify — checks the code. The account decides the stall (one phone per stall),
+  /// so the stall and canteen are saved for today's session as part of login.
+  Future<({Vendor vendor, String token, String stallId, String stallName})> verifyOtp({
     required String phone,
-    required String canteenId,
+    required String code,
   });
 
   /// Persists [vendor] and [token] to local storage.

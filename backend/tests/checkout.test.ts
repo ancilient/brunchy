@@ -122,6 +122,17 @@ describe('checkout and stock reservation', () => {
     expect(order.bills[0].status).toBe('expired');
   });
 
+  it('closing the payment sheet releases the hold at once; a paid order cannot be cancelled this way', async () => {
+    await setStock(202, 10);
+    const r = await client.post('/checkout', { canteenId: '1', items: [{ productId: '202', qty: 3 }], idempotencyKey: key() }, studentToken());
+    expect(await stockOf(202)).toBe(7);
+    const cancelled = await client.post(`/checkout/${r.body.order.id}/cancel`, {}, studentToken());
+    expect(cancelled.body.order.status).toBe('cancelled');
+    expect(await stockOf(202)).toBe(10);
+    const again = await client.post(`/checkout/${r.body.order.id}/cancel`, {}, studentToken());
+    expect(again.body.error.code).toBe('ORDER_NOT_PENDING');
+  });
+
   it('needs a student login', async () => {
     const r = await client.post('/checkout', { canteenId: '1', items: [{ productId: '101', qty: 1 }], idempotencyKey: key() });
     expect(r.status).toBe(401);

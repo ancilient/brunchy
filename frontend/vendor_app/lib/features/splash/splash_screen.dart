@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/date_formatter.dart';
+import '../../data/repositories/auth_repository.dart';
 import '../../injection_container.dart';
 import '../../services/local_storage_service.dart';
 
@@ -25,7 +26,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     Future.delayed(const Duration(milliseconds: 1500), _navigate);
   }
 
-  void _navigate() {
+  Future<void> _navigate() async {
     if (!mounted) return;
     final storage = sl<LocalStorageService>();
 
@@ -39,7 +40,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       return;
     }
 
-    if (!storage.isLoggedIn) {
+    // Not logged in, or a session the server never issued (e.g. left over from the offline demo): log in again.
+    if (!storage.isLoggedIn || !sl<AuthRepository>().validateStoredState()) {
+      await storage.clearSession();
+      if (!mounted) return;
       context.go('/login');
       return;
     }

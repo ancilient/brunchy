@@ -29,8 +29,9 @@ class CartScreen extends StatelessWidget {
     });
     final grandTotal = subtotal + tax + s.convenienceFee;
 
-    void checkout() {
-      final res = s.startCheckout();
+    Future<void> checkout() async {
+      final res = await s.startCheckout();
+      if (!context.mounted) return;
       if (res.success) {
         onProceedToPay();
       } else if (!res.shortage && res.message != null) {

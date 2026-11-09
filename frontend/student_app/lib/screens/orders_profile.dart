@@ -86,6 +86,7 @@ class _BillCard extends StatelessWidget {
     final s = AppScope.read(context);
     final b = bill;
     final isWaiting = b.status == 'waiting_for_acceptance';
+    final isReady = b.status == 'ready';
     final isAccepted = const ['accepted', 'preparing', 'ready'].contains(b.status);
     final isCompleted = b.status == 'completed' || b.status == 'collected' || b.isBlurredSealed;
     final isRefunded = b.status == 'refunded' || b.status == 'rejected';
@@ -94,6 +95,8 @@ class _BillCard extends StatelessWidget {
     Widget badge;
     if (isWaiting) {
       badge = _Pulse(child: _statusPill('Waiting for Acceptance', C.amber100, C.amber800, const LIcon('Clock', size: 14, color: C.amber600)));
+    } else if (isReady) {
+      badge = _Pulse(child: _statusPill('Ready! Collect now', C.emerald100, C.emerald800, const LIcon('Check', size: 14, color: C.emerald600)));
     } else if (isAccepted) {
       badge = _statusPill('Accepted & Cooking', C.emerald100, C.emerald800, const LIcon('Sparkles', size: 14, color: C.emerald600));
     } else if (isCompleted) {
@@ -202,28 +205,26 @@ class _BillCard extends StatelessWidget {
               txt('₹${fmtNum(b.total)}', 12, w: w7, font: F.mono, color: C.brand),
             ]),
           ),
-          if (isWaiting) ...[
+          // The stall accepts and hands over from the vendor app; the student can still cancel before cooking starts.
+          if (b.status == 'waiting_for_acceptance' || b.status == 'accepted') ...[
             const SizedBox(height: 12),
-            _action('Simulate Kitchen Acceptance', C.emerald50, C.emerald800, C.emerald200, const LIcon('Sparkles', size: 14, color: C.emerald600),
-                () => s.vendorAcceptOrder(b.stallOrderId, 6)),
-            const SizedBox(height: 8),
-            _action('Cancel & Instant Refund (₹${fmtNum(b.total)})', C.rose50, C.rose700, C.rose200, null, () async {
-              if (await showConfirm(context, 'Cancel this bill? You will receive an immediate full refund.')) s.cancelStudentBill(b.stallOrderId);
+            _action('Cancel & Refund (₹${fmtNum(b.total)})', C.rose50, C.rose700, C.rose200, null, () async {
+              if (!await showConfirm(context, 'Cancel this bill? The full amount is refunded to your payment method.')) return;
+              final error = await s.cancelStudentBill(b.stallOrderId);
+              if (error != null && context.mounted) showAlert(context, error);
             }),
           ],
-          if (isAccepted && !isCompleted) ...[
-            const SizedBox(height: 12),
-            GradientButton(
-              onTap: () => s.handOverBill(b.stallOrderId),
-              radius: 12,
+          if (isReady)
+            Container(
+              margin: const EdgeInsets.only(top: 12),
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
+              decoration: BoxDecoration(gradient: C.brandGradient, borderRadius: BorderRadius.circular(12)),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 const LIcon('Check', size: 14, color: Colors.white, strokeWidth: 3),
                 const SizedBox(width: 6),
-                Flexible(child: txt('Tell Code ${b.pickupCode} at Counter (Hand Over & Seal)', 12, w: w7, color: Colors.white, align: TextAlign.center)),
+                Flexible(child: txt('Go to the counter and say code ${b.pickupCode}', 12, w: w7, color: Colors.white, align: TextAlign.center)),
               ]),
             ),
-          ],
         ]),
       ),
     ]);

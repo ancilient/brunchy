@@ -1,21 +1,24 @@
 import 'dart:async';
 import '../data/models/order.dart';
-import '../data/mock/mock_order_repository.dart';
+import '../data/repositories/order_repository.dart';
 import 'realtime_connection_state.dart';
 
+/// Live order events for the current stall. The events come from the order repository:
+/// Socket.IO from the backend (RemoteOrderRepository) or the in-memory demo (MockOrderRepository).
 class RealtimeService {
-  final MockOrderRepository _mockRepo;
+  final OrderRepository _orders;
+  final void Function()? _onDisconnect;
 
   RealtimeConnectionState _connectionState = RealtimeConnectionState.connected;
   final _connectionController = StreamController<RealtimeConnectionState>.broadcast();
 
-  RealtimeService(this._mockRepo);
+  RealtimeService(this._orders, {void Function()? onDisconnect}) : _onDisconnect = onDisconnect;
 
   RealtimeConnectionState get connectionState => _connectionState;
 
   Stream<RealtimeConnectionState> get connectionStateStream => _connectionController.stream;
 
-  Stream<({String event, Order order})> get orderStream => _mockRepo.watchOrders(_stallId ?? '');
+  Stream<({String event, Order order})> get orderStream => _orders.watchOrders(_stallId ?? '');
 
   String? _stallId;
   final List<Future<void> Function()> _offlineOperations = [];
@@ -37,14 +40,10 @@ class RealtimeService {
       final operation = _offlineOperations.removeAt(0);
       await operation();
     }
-    // In production: open WebSocket, start exponential backoff reconnect loop
-    // [API-006] WS /ws/stalls/{stallId}/orders
   }
 
   Future<void> disconnect() async {
     _stallId = null;
-    _mockRepo.stopWatching();
-    // In production: close WebSocket, cancel reconnect timer
+    _onDisconnect?.call();
   }
 }
-

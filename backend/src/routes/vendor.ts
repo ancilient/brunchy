@@ -15,9 +15,21 @@ const idParam = (value: unknown, what: string) => {
 };
 const pickupCode = z.string().regex(/^[1-9]\d{2}$/, 'The pickup code has 3 digits');
 
-/** ?status=active (default) | new | accepted | preparing | ready | collected | closed | all */
+/** ?status=active (default) | new | accepted | preparing | ready | collected | closed | all, and optional ?date=YYYY-MM-DD (IST) */
 vendorRouter.get('/vendor/bills', async (req, res) => {
-  res.json(await bills.listVendorBills(currentUser(req), String(req.query.status ?? 'active')));
+  const date =
+    req.query.date === undefined ? undefined : z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date is YYYY-MM-DD').parse(String(req.query.date));
+  res.json(await bills.listVendorBills(currentUser(req), String(req.query.status ?? 'active'), date));
+});
+
+/** My stall: name, canteen and current status. */
+vendorRouter.get('/vendor/stall', async (req, res) => {
+  res.json(await bills.getVendorStall(currentUser(req)));
+});
+
+/** Every item of my stall, including switched-off ones, with stock and daily default quantity. */
+vendorRouter.get('/vendor/products', async (req, res) => {
+  res.json(await bills.listVendorProducts(currentUser(req)));
 });
 
 vendorRouter.get('/vendor/bills/lookup', async (req, res) => {
@@ -52,9 +64,12 @@ vendorRouter.patch('/vendor/products/:id', async (req, res) => {
 vendorRouter.post('/vendor/stall/status', async (req, res) => {
   const body = z
     .object({
-      action: z.enum(['pause', 'close', 'resume']),
+      action: z.enum(['pause', 'close', 'resume', 'emergency']),
       minutes: z.union([z.literal(10), z.literal(15), z.literal(30)]).optional(),
+      reason: z.enum(['GAS_CUT', 'POWER_FAILURE', 'SHORTAGE', 'OTHER']).optional(),
+      detail: z.string().max(200).optional(),
     })
+    .refine((b) => b.action !== 'emergency' || b.reason, 'Emergency stop needs a reason')
     .parse(req.body);
   res.json(await bills.setStallStatus(currentUser(req), body));
 });

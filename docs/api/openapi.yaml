@@ -153,6 +153,15 @@ paths:
         '403': { description: ORDERING_PAUSED, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 'OUT_OF_STOCK (details.shortages), STALL_NOT_OPEN, CANTEEN_CLOSED, ITEM_UNAVAILABLE', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /checkout/{orderId}/cancel:
+    post:
+      tags: [Checkout]
+      summary: Student closed the payment sheet - release the held stock now (unpaid orders only)
+      parameters: [{ name: orderId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: 'OK, order.status is cancelled', content: { application/json: { schema: { $ref: '#/components/schemas/CheckoutResult' } } } }
+        '409': { description: ORDER_NOT_PENDING, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /checkout/{orderId}/confirm-partial:
     post:
       tags: [Checkout]
@@ -222,8 +231,23 @@ paths:
       summary: Live board - today's paid bills of my stall
       parameters:
         - { name: status, in: query, schema: { type: string, enum: [active, new, accepted, preparing, ready, collected, closed, all], default: active } }
+        - { name: date, in: query, schema: { type: string, format: date }, description: 'Earlier day (IST) for order history; default today' }
       responses:
         '200': { description: OK, content: { application/json: { schema: { type: object, properties: { bills: { type: array, items: { $ref: '#/components/schemas/Bill' } } } } } } }
+
+  /vendor/stall:
+    get:
+      tags: [Vendor]
+      summary: My stall (from the account) with its current status
+      responses:
+        '200': { description: '{ stall: { id, name, canteenId, canteenName, billPrefix, status, pausedUntil, avgPrepMinutes } }' }
+
+  /vendor/products:
+    get:
+      tags: [Vendor]
+      summary: Every item of my stall, including switched-off ones
+      responses:
+        '200': { description: '{ products: [{ id, name, price, stockQuantity, dailyDefaultQty, isActive, approvalStatus, onTodaysMenu, ... }] }' }
 
   /vendor/bills/lookup:
     get:
@@ -237,7 +261,7 @@ paths:
   /vendor/bills/{id}/status:
     patch:
       tags: [Vendor]
-      summary: Accept, Preparing, Ready, or Reject (reason required; refund recorded)
+      summary: Accept, Preparing, Ready, or Reject (reason required; refund recorded). Ready -> Preparing undoes Ready within 10 s (else UNDO_WINDOW_EXPIRED).
       parameters: [{ $ref: '#/components/parameters/Id' }]
       requestBody:
         required: true
@@ -285,7 +309,8 @@ paths:
   /vendor/stall/status:
     post:
       tags: [Vendor]
-      summary: Pause (auto-resumes), Close for today, or Resume. Paid bills on the board continue.
+      summary: Pause (auto-resumes), Close for today, Resume, or Emergency stop
+      description: Pause and Close keep paid bills on the board. Emergency stop closes the stall and rejects + refunds every bill not yet started (STALL_EMERGENCY).
       requestBody:
         required: true
         content:
@@ -294,10 +319,12 @@ paths:
               type: object
               required: [action]
               properties:
-                action: { type: string, enum: [pause, close, resume] }
+                action: { type: string, enum: [pause, close, resume, emergency] }
                 minutes: { type: integer, enum: [10, 15, 30], description: Required for pause }
+                reason: { type: string, enum: [GAS_CUT, POWER_FAILURE, SHORTAGE, OTHER], description: Required for emergency }
+                detail: { type: string }
       responses:
-        '200': { description: 'OK: { stall: { id, name, status, pausedUntil } }' }
+        '200': { description: 'OK: { stall: { id, name, status, pausedUntil }, refundedBillIds: [..], preparingBillIds: [..] }' }
 
 components:
   securitySchemes:
