@@ -10,10 +10,10 @@ Stalls receive paid orders and do almost no extra work.
 brunchy/
 ├── frontend/
 │   ├── student_app/     Flutter student app (main app; demo screens done, not yet connected to the backend)
-│   ├── vendor_app/      Flutter vendor app + admin web page (not started)
+│   ├── vendor_app/      Flutter vendor app (demo screens done, not yet connected to the backend)
 │   └── web_prototype/   React + Vite + Capacitor prototype of the student app (reference only)
-├── backend/             Node.js + Express + TypeScript API (not started)
-├── database/            MySQL schema: migrations and seed data (not started)
+├── backend/             Node.js + Express + TypeScript API (milestone 1: ordering loop works, mock payments)
+├── database/            MySQL schema: migrations and seed data
 ├── docs/                project documents; client PDFs stay local (see docs/README.md)
 └── .github/workflows/   cloud builds of the APKs
 ```
@@ -21,9 +21,9 @@ brunchy/
 | Folder | Owner | Status |
 |---|---|---|
 | `frontend/student_app` | Frontend team | Screens done (demo data) |
-| `frontend/vendor_app` | Frontend team | Not started |
-| `backend` | Backend team | Not started |
-| `database` | Backend team | Not started |
+| `frontend/vendor_app` | Frontend team | Screens done (demo data) |
+| `backend` | Backend team | Milestone 1 done: login, menu, checkout, mock payment, bills, handover, live updates |
+| `database` | Backend team | Milestone 1 schema + demo seed |
 
 ## How the parts connect
 
@@ -37,7 +37,7 @@ brunchy/
                                       money: the truth) job queue)
 ```
 The apps never talk to the database directly. The server decides what is paid, what is in stock and what each pickup code is worth.
-The API contract (every request and response) is kept in `docs/api/` by the backend team. Agree on changes there before you code them.
+The API contract (every request and response) is [`docs/api/openapi.yaml`](docs/api/openapi.yaml), kept by the backend team. Agree on changes there before you code them.
 
 ## Tech stack
 

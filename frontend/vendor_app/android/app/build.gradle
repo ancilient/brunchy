@@ -21,10 +21,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     defaultConfig {
         applicationId = "com.brunchy.brunchy_vendor"
         minSdk = 24
@@ -44,11 +40,21 @@ android {
 
     buildTypes {
         release {
-            if (!keystorePropertiesFile.exists()) {
+            // Only release builds (Play Store) need the private upload key. Debug builds (`flutter run`) work without it.
+            def buildingRelease = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+            if (buildingRelease && !keystorePropertiesFile.exists()) {
                 throw new GradleException('Missing android/key.properties. Copy key.properties.example, provide the private upload key, then build the Play Store App Bundle.')
             }
-            signingConfig = signingConfigs.release
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.release
+            }
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 

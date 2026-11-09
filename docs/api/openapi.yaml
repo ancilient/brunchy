@@ -1,0 +1,461 @@
+openapi: 3.0.3
+info:
+  title: Brunchy API
+  version: 0.1.0 (milestone 1)
+  description: |
+    The contract between the Brunchy apps and the backend. Base URL: `http://<host>:4000/api/v1`.
+
+    Conventions
+    - JSON keys are camelCase. Ids are strings ("42"). Money is a number in rupees (84.5). Timestamps are ISO-8601 UTC.
+    - Send `Authorization: Bearer <accessToken>` on every call except /auth/* and /payments/webhook.
+    - Errors always look like `{ "error": { "code": "STALL_NOT_OPEN", "message": "...", "details": {...} } }`.
+      Show `message` to the user; branch on `code`.
+    - The server computes every price, tax and total. The apps send only product ids and quantities.
+    - Live updates come over Socket.IO (same host and port), not by polling. See the `x-realtime` section below.
+x-realtime:
+  connect: "io('http://<host>:4000', { auth: { token: accessToken } })"
+  events:
+    bill.new: "Vendor only. A newly paid bill for your stall. Payload: Bill."
+    bill.updated: "Vendor and student. A bill changed status. Payload: Bill."
+    order.updated: "Student. The order changed (paid, expired, refund). Payload: Order."
+servers:
+  - url: http://localhost:4000/api/v1
+security:
+  - bearer: []
+tags:
+  - name: Auth
+  - name: Menu
+  - name: Checkout
+  - name: Payments
+  - name: Student orders
+  - name: Vendor
+
+paths:
+  /health:
+    get:
+      security: []
+      summary: Server, database and Redis are up
+      responses:
+        '200': { description: OK }
+
+  /auth/otp:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Send a 6-digit login code to the phone
+      description: In development (OTP_DEV_ECHO=true) the code is returned as `devCode` instead of being sent by SMS.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [phone], properties: { phone: { type: string, example: '9876543210' } } }
+      responses:
+        '200':
+          description: Code sent
+          content:
+            application/json:
+              schema: { type: object, properties: { expiresInSeconds: { type: integer }, devCode: { type: string } } }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /auth/verify:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Check the code and log in
+      description: A phone number seen for the first time becomes a student account and needs `name` (error NAME_REQUIRED otherwise).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string, example: '482913' }
+                name: { type: string }
+                registerNo: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '400': { description: 'OTP_WRONG (details.attemptsLeft), OTP_EXPIRED, OTP_LOCKED, NAME_REQUIRED', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Swap a refresh token for a new pair (the old refresh token stops working)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [refreshToken], properties: { refreshToken: { type: string } } } } }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [refreshToken], properties: { refreshToken: { type: string } } } } }
+      responses:
+        '204': { description: Logged out }
+
+  /me:
+    get:
+      tags: [Auth]
+      responses:
+        '200': { description: The logged-in user, content: { application/json: { schema: { type: object, properties: { user: { $ref: '#/components/schemas/User' } } } } } }
+
+  /canteens:
+    get:
+      tags: [Menu]
+      summary: Active canteens with hours and whether they take orders now
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { type: object, properties: { canteens: { type: array, items: { $ref: '#/components/schemas/Canteen' } } } } } }
+
+  /canteens/{id}/menu:
+    get:
+      tags: [Menu]
+      summary: Today's menu of one canteen, grouped by stall
+      description: Send `If-None-Match` with the last ETag; an unchanged menu returns 304 with no body. Stock shown here can be a few seconds old; checkout always checks real stock.
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Menu' } } } }
+        '304': { description: Not modified }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /checkout:
+    post:
+      tags: [Checkout]
+      summary: Reserve stock for the cart and create the order (nothing is charged)
+      description: |
+        Stock is held for 5 minutes. If something is short, the response has `needsConfirmation: true` and `shortages`
+        ("Only 3 available. Order 3 or Remove?"); answer with /checkout/{orderId}/confirm-partial.
+        Otherwise `payment` tells the app what to pay. Re-sending the same `idempotencyKey` returns the same order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [canteenId, items, idempotencyKey]
+              properties:
+                canteenId: { type: string, example: '1' }
+                items: { type: array, items: { type: object, required: [productId, qty], properties: { productId: { type: string }, qty: { type: integer, minimum: 1, maximum: 20 } } } }
+                idempotencyKey: { type: string, minLength: 8, maxLength: 64, description: 'A new random string per checkout attempt (e.g. a UUID)' }
+      responses:
+        '201': { description: Order created and ready to pay, content: { application/json: { schema: { $ref: '#/components/schemas/CheckoutResult' } } } }
+        '200': { description: Order created but some items are short (needsConfirmation), content: { application/json: { schema: { $ref: '#/components/schemas/CheckoutResult' } } } }
+        '400': { description: 'MIXED_CANTEEN, VALIDATION_ERROR', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: ORDERING_PAUSED, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'OUT_OF_STOCK (details.shortages), STALL_NOT_OPEN, CANTEEN_CLOSED, ITEM_UNAVAILABLE', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /checkout/{orderId}/confirm-partial:
+    post:
+      tags: [Checkout]
+      summary: Answer the shortage prompt; removed lines release their hold, then the payment is created
+      parameters: [{ name: orderId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lines: { type: array, items: { type: object, properties: { productId: { type: string }, action: { type: string, enum: [take_available, remove] } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/CheckoutResult' } } } }
+        '409': { description: 'ORDER_EXPIRED, ORDER_NOT_PENDING, ALREADY_CONFIRMED', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /payments/webhook:
+    post:
+      tags: [Payments]
+      security: []
+      summary: Called by the payment gateway only. The only way an order becomes paid.
+      description: Signature-checked (mock gateway header `x-mock-signature`, HMAC-SHA256 of the raw body). Safe to receive many times.
+      responses:
+        '200': { description: 'result is paid | replay | failed | refund | ignored' }
+        '401': { description: INVALID_SIGNATURE }
+
+  /payments/mock/{orderId}/pay:
+    post:
+      tags: [Payments]
+      summary: DEVELOPMENT ONLY - pretend the student paid (or failed with `fail:true`)
+      parameters: [{ name: orderId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { fail: { type: boolean }, upiApp: { type: string, example: gpay } } } } }
+      responses:
+        '200': { description: Same result as the webhook }
+
+  /orders:
+    get:
+      tags: [Student orders]
+      summary: My orders, newest first, with each bill's live status
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 20 } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { orders: { type: array, items: { $ref: '#/components/schemas/Order' } } } } } } }
+
+  /orders/{id}:
+    get:
+      tags: [Student orders]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: The order plus serverTime (use it for countdowns; never trust the phone clock)
+          content: { application/json: { schema: { type: object, properties: { order: { $ref: '#/components/schemas/Order' }, serverTime: { type: string, format: date-time } } } } }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /bills/{id}/cancel:
+    post:
+      tags: [Student orders]
+      summary: Cancel one bill while it is New or Accepted (refund recorded, food back on sale)
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/BillResult' }
+        '409': { description: CANNOT_CANCEL, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /vendor/bills:
+    get:
+      tags: [Vendor]
+      summary: Live board - today's paid bills of my stall
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [active, new, accepted, preparing, ready, collected, closed, all], default: active } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { bills: { type: array, items: { $ref: '#/components/schemas/Bill' } } } } } } }
+
+  /vendor/bills/lookup:
+    get:
+      tags: [Vendor]
+      summary: Find today's open bill at my stall by its 3-digit pickup code
+      parameters: [{ name: code, in: query, required: true, schema: { type: string, example: '567' } }]
+      responses:
+        '200': { $ref: '#/components/responses/BillResult' }
+        '404': { description: CODE_NOT_FOUND, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /vendor/bills/{id}/status:
+    patch:
+      tags: [Vendor]
+      summary: Accept, Preparing, Ready, or Reject (reason required; refund recorded)
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [accepted, preparing, ready, rejected] }
+                reason: { type: string, enum: [OUT_OF_STOCK, ITEM_UNAVAILABLE, KITCHEN_ISSUE, STALL_EMERGENCY, STALL_REJECTED] }
+                prepMinutes: { type: integer, description: 'With accepted: sets estimatedReadyAt' }
+      responses:
+        '200': { $ref: '#/components/responses/BillResult' }
+        '403': { description: WRONG_STALL, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: INVALID_TRANSITION, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /vendor/bills/{id}/handover:
+    post:
+      tags: [Vendor]
+      summary: Hand over the food after typing the code the student says. Works once.
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string, example: '567' } } } } }
+      responses:
+        '200': { $ref: '#/components/responses/BillResult' }
+        '400': { description: 'CODE_WRONG (details.attemptsLeft)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: WRONG_STALL, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'ORDER_NOT_READY, ALREADY_COLLECTED (details.collectedAt), BILL_NOT_ACTIVE', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '423': { description: 'CODE_LOCKED after 4 wrong codes (5 minutes)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /vendor/products/{id}:
+    patch:
+      tags: [Vendor]
+      summary: Set today's quantity and/or switch an item on/off (my stall only)
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { stockQuantity: { type: integer, minimum: 0 }, isActive: { type: boolean } } } } }
+      responses:
+        '200': { description: OK }
+        '403': { description: WRONG_STALL }
+
+  /vendor/stall/status:
+    post:
+      tags: [Vendor]
+      summary: Pause (auto-resumes), Close for today, or Resume. Paid bills on the board continue.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [pause, close, resume] }
+                minutes: { type: integer, enum: [10, 15, 30], description: Required for pause }
+      responses:
+        '200': { description: 'OK: { stall: { id, name, status, pausedUntil } }' }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string } }
+  responses:
+    Error:
+      description: Error
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Session:
+      description: Logged in
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              accessToken: { type: string, description: 'JWT, valid 15 minutes' }
+              refreshToken: { type: string, description: 'Valid 30 days, single use' }
+              user: { $ref: '#/components/schemas/User' }
+    BillResult:
+      description: The bill after the change
+      content: { application/json: { schema: { type: object, properties: { bill: { $ref: '#/components/schemas/Bill' } } } } }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: object, properties: { code: { type: string }, message: { type: string }, details: { type: object } } }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        registerNo: { type: string, nullable: true }
+        role: { type: string, enum: [student, vendor, manager, admin] }
+        stallId: { type: string, nullable: true }
+        canteenId: { type: string, nullable: true }
+        noShowCount: { type: integer }
+        orderingPausedUntil: { type: string, format: date-time, nullable: true }
+    Canteen:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        openingTime: { type: string, example: '07:30', description: IST }
+        closingTime: { type: string, example: '18:00', description: IST }
+        status: { type: string, enum: [open, closed] }
+        takingOrders: { type: boolean }
+        lastOrderMinutes: { type: integer }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        stallId: { type: string }
+        name: { type: string }
+        category: { type: string }
+        description: { type: string, nullable: true }
+        price: { type: number }
+        isVeg: { type: boolean }
+        imageUrl: { type: string, nullable: true }
+        prepMinutes: { type: integer, nullable: true }
+        stockQuantity: { type: integer }
+        stockState: { type: string, enum: [in_stock, low, sold_out] }
+    Menu:
+      type: object
+      properties:
+        canteen: { $ref: '#/components/schemas/Canteen' }
+        generatedAt: { type: string, format: date-time }
+        stalls:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              billPrefix: { type: string }
+              gstRate: { type: number }
+              status: { type: string, enum: [open, paused, closed] }
+              pausedUntil: { type: string, format: date-time, nullable: true }
+              category: { type: string }
+              accentColor: { type: string }
+              iconName: { type: string }
+              avgPrepMinutes: { type: integer }
+              products: { type: array, items: { $ref: '#/components/schemas/Product' } }
+    BillItem:
+      type: object
+      properties:
+        id: { type: string }
+        productId: { type: string }
+        name: { type: string }
+        price: { type: number }
+        gstRate: { type: number }
+        qtyRequested: { type: integer }
+        quantity: { type: integer }
+        status: { type: string, enum: [active, unavailable_refunded] }
+    Bill:
+      type: object
+      description: One stall's part of an order. Each bill has its own number, pickup code and status.
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        stallId: { type: string }
+        stallName: { type: string }
+        canteenId: { type: string }
+        billNo: { type: string, nullable: true, example: BH-0117 }
+        billDate: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [awaiting_payment, new, accepted, preparing, ready, collected, rejected, cancelled, expired, refunded] }
+        pickupCode: { type: string, nullable: true, example: '567', description: 'Set once paid' }
+        codeLocked: { type: boolean }
+        studentFirstName: { type: string }
+        subtotal: { type: number }
+        tax: { type: number }
+        total: { type: number }
+        items: { type: array, items: { $ref: '#/components/schemas/BillItem' } }
+        createdAt: { type: string, format: date-time }
+        estimatedReadyAt: { type: string, format: date-time, nullable: true }
+        acceptedAt: { type: string, format: date-time, nullable: true }
+        preparingAt: { type: string, format: date-time, nullable: true }
+        readyAt: { type: string, format: date-time, nullable: true }
+        collectedAt: { type: string, format: date-time, nullable: true }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        expiredAt: { type: string, format: date-time, nullable: true }
+        cancelReason: { type: string, nullable: true }
+    Order:
+      type: object
+      description: One payment. The food status lives on each bill.
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        canteenId: { type: string }
+        canteenName: { type: string }
+        status: { type: string, enum: [pending, paid, cancelled, expired] }
+        subtotal: { type: number }
+        tax: { type: number }
+        convenienceFee: { type: number }
+        total: { type: number }
+        gatewayOrderRef: { type: string, nullable: true }
+        paymentExpiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        paidAt: { type: string, format: date-time, nullable: true }
+        bills: { type: array, items: { $ref: '#/components/schemas/Bill' } }
+    CheckoutResult:
+      type: object
+      properties:
+        order: { $ref: '#/components/schemas/Order' }
+        needsConfirmation: { type: boolean }
+        shortages:
+          type: array
+          items: { type: object, properties: { productId: { type: string }, name: { type: string }, requested: { type: integer }, available: { type: integer } } }
+        payment:
+          type: object
+          nullable: true
+          properties:
+            gateway: { type: string, example: mock }
+            gatewayOrderRef: { type: string }
+            amountPaise: { type: integer }
+            currency: { type: string, example: INR }
+            expiresAt: { type: string, format: date-time }
