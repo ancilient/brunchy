@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../api/api_client.dart';
 import '../state/app_scope.dart';
 import '../state/models.dart';
 import '../ui/icons.dart';
@@ -33,11 +34,53 @@ class LoginScreen extends StatefulWidget {
 }
 
 class LoginScreenState extends State<LoginScreen> {
-  final _name = TextEditingController(text: 'Priya R.');
-  final _phone = TextEditingController(text: '9845012345');
-  final _reg = TextEditingController(text: 'ENG2024-8842');
-  final _otp = TextEditingController(text: '1234');
+  // Pre-filled with the backend's seeded demo student so development is quick.
+  final _name = TextEditingController(text: 'Demo Student');
+  final _phone = TextEditingController(text: '9876543210');
+  final _reg = TextEditingController(text: '41110001');
+  final _otp = TextEditingController();
   String _step = 'details';
+  bool _busy = false;
+  bool _devFilled = false;
+
+  Future<void> _sendCode() async {
+    if (_busy) return;
+    if (_name.text.trim().isEmpty || _phone.text.trim().length != 10) {
+      showAlert(context, 'Enter your name and a 10-digit mobile number.');
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() => _busy = true);
+    try {
+      final devCode = await AppScope.read(context).requestOtp(_phone.text.trim());
+      _otp.text = devCode ?? '';
+      _devFilled = devCode != null;
+      if (mounted) setState(() => _step = 'otp');
+    } on ApiException catch (e) {
+      if (mounted) showAlert(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _verify() async {
+    if (_busy) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _busy = true);
+    try {
+      await AppScope.read(context).verifyOtp(
+        phone: _phone.text.trim(),
+        code: _otp.text.trim(),
+        name: _name.text.trim(),
+        registerNo: _reg.text.trim(),
+      );
+      widget.onLoginSuccess();
+    } on ApiException catch (e) {
+      if (mounted) showAlert(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   /// Android back: OTP step goes back to the details step.
   bool handleBack() {
@@ -64,7 +107,6 @@ class LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final s = AppScope.read(context);
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
@@ -106,13 +148,9 @@ class LoginScreenState extends State<LoginScreen> {
                     decoration: _input(hint: 'e.g. ENG2024-8842', prefix: const Padding(padding: EdgeInsets.only(left: 12, right: 8), child: LIcon('Award', size: 16, color: C.slate400)))),
                 const SizedBox(height: 24),
                 GradientButton(
-                  onTap: () {
-                    if (_name.text.trim().isEmpty || _phone.text.trim().isEmpty) return;
-                    FocusScope.of(context).unfocus();
-                    setState(() => _step = 'otp');
-                  },
+                  onTap: _sendCode,
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    txt('Continue with SMS OTP', 12, w: w7, color: Colors.white),
+                    txt(_busy ? 'Sending code...' : 'Continue with SMS OTP', 12, w: w7, color: Colors.white),
                     const SizedBox(width: 8),
                     const LIcon('ArrowRight', size: 16, color: Colors.white),
                   ]),
@@ -122,30 +160,29 @@ class LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: C.amber50, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.a(C.amber200, 0.8))),
                   child: Column(children: [
-                    txt('Enter 4-digit code sent to +91 ${_phone.text}', 11, color: C.slate600, align: TextAlign.center),
-                    const SizedBox(height: 2),
-                    txt('(Demo auto-fill: 1234)', 10, w: w6, color: C.amber700),
+                    txt('Enter the 6-digit code sent to +91 ${_phone.text}', 11, color: C.slate600, align: TextAlign.center),
+                    if (_devFilled) ...[
+                      const SizedBox(height: 2),
+                      txt('(Development server: code filled in for you)', 10, w: w6, color: C.amber700),
+                    ],
                   ]),
                 ),
                 const SizedBox(height: 16),
                 Center(
                   child: SizedBox(
-                    width: 144,
-                    child: TextField(controller: _otp, maxLength: 4, keyboardType: TextInputType.number, textAlign: TextAlign.center,
-                        style: ts(18, w: w7, font: F.mono, spacing: 18), decoration: _input()),
+                    width: 200,
+                    child: TextField(controller: _otp, maxLength: 6, keyboardType: TextInputType.number, textAlign: TextAlign.center,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        style: ts(18, w: w7, font: F.mono, spacing: 10), decoration: _input()),
                   ),
                 ),
                 const SizedBox(height: 16),
                 GradientButton(
-                  onTap: () {
-                    FocusScope.of(context).unfocus();
-                    s.completeStudentLogin(_name.text.trim(), _phone.text.trim(), _reg.text.trim());
-                    widget.onLoginSuccess();
-                  },
+                  onTap: _verify,
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     const LIcon('ShieldCheck', size: 16, color: Colors.white),
                     const SizedBox(width: 8),
-                    txt('Verify & Remember Me', 12, w: w7, color: Colors.white),
+                    txt(_busy ? 'Checking...' : 'Verify & Remember Me', 12, w: w7, color: Colors.white),
                   ]),
                 ),
                 const SizedBox(height: 16),

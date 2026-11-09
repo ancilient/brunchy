@@ -130,11 +130,12 @@ class _StudentAppShellState extends State<StudentAppShell> {
 
   void _afterShortageResolved() {
     // Run checkout again with the corrected cart.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final s = AppScope.read(context);
       if (s.cart.isEmpty) return;
-      final res = s.startCheckout();
+      final res = await s.startCheckout();
+      if (!mounted) return;
       if (res.success) {
         setState(() => _payOpen = true);
       } else if (!res.shortage && res.message != null) {

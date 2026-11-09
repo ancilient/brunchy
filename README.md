@@ -9,8 +9,8 @@ Stalls receive paid orders and do almost no extra work.
 ```
 brunchy/
 ├── frontend/
-│   ├── student_app/     Flutter student app (main app; demo screens done, not yet connected to the backend)
-│   ├── vendor_app/      Flutter vendor app (demo screens done, not yet connected to the backend)
+│   ├── student_app/     Flutter student app (connected to the backend: login, menu, checkout, mock payment, live bills)
+│   ├── vendor_app/      Flutter vendor app (connected to the backend: live orders, handover, stock, stall controls)
 │   └── web_prototype/   React + Vite + Capacitor prototype of the student app (reference only)
 ├── backend/             Node.js + Express + TypeScript API (milestone 1: ordering loop works, mock payments)
 ├── database/            MySQL schema: migrations and seed data
@@ -20,8 +20,8 @@ brunchy/
 
 | Folder | Owner | Status |
 |---|---|---|
-| `frontend/student_app` | Frontend team | Screens done (demo data) |
-| `frontend/vendor_app` | Frontend team | Screens done (demo data) |
+| `frontend/student_app` | Frontend team | Connected to the backend (mock payments) |
+| `frontend/vendor_app` | Frontend team | Connected to the backend (dashboard still demo data) |
 | `backend` | Backend team | Milestone 1 done: login, menu, checkout, mock payment, bills, handover, live updates |
 | `database` | Backend team | Milestone 1 schema + demo seed |
 
@@ -59,6 +59,26 @@ The API contract (every request and response) is [`docs/api/openapi.yaml`](docs/
 git clone https://github.com/ancilient/brunchy.git
 cd brunchy
 ```
+### Run the whole thing locally (backend + student app on your phone)
+Needs Docker Desktop, Node.js 22+, Flutter 3.47 and Android Studio.
+```
+docker compose up -d                       # MySQL + Redis
+cd backend
+copy .env.example .env                     # first time only (macOS/Linux: cp); change the two secrets
+npm install                                # first time only
+npm run db:reset                           # first time only: tables + demo menu and accounts
+npm run dev                                # API on http://localhost:4000/api/v1
+```
+In a second terminal, with the phone connected by USB (USB debugging on):
+```
+adb reverse tcp:4000 tcp:4000
+cd frontend/student_app
+flutter pub get
+flutter run
+```
+Log in as the demo student (9876543210; the OTP is filled in automatically in development).
+For the stall side, run `frontend/vendor_app` the same way and log in with 9000000001 (Burger Hub).
+
 Then open only the folder for your role and follow its README:
 
 - **Student app:** `frontend/student_app/README.md` (needs Flutter and Android Studio)

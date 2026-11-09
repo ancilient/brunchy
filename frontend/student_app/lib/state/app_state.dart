@@ -1,4 +1,7 @@
-// App state and logic, a line-by-line port of the student parts of src/context/CanteenContext.tsx.
+// App state, backed by the Brunchy backend (backend/, contract in docs/api/openapi.yaml).
+// The server is the only truth for stock, prices, payment and bill status; this class keeps a copy for the screens,
+// plus the cart and choices that only live on the phone. Field and method names match the original demo version,
+// so the screens barely changed.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -6,123 +9,216 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../api/api_client.dart';
+import '../api/mappers.dart';
+import '../api/realtime.dart';
 import 'menu_data.dart';
 import 'models.dart';
 
-const _stateKey = 'brunchy_state_v1';
-const _userKey = 'brunchy_user';
-const _demoPhone = '9845012345'; // the seeded demo student (user_id 1) owns the sample order
+const _stateKey = 'brunchy_state_v2'; // cart and choices (v1 was the offline demo)
+const _userKey = 'brunchy_user_v2';
+const _menuCacheKey = 'brunchy_menu_cache_v1';
+
+final _loggedOut = UserProfile(userId: 0, name: '', phone: '', registerNo: '', isLoggedIn: false);
 
 class AppState extends ChangeNotifier {
-  AppState._(this._prefs);
-  final SharedPreferences _prefs;
+  AppState._(this._prefs) : api = ApiClient(_prefs) {
+    _realtime = Realtime(api)
+      ..onBill = _applyBill
+      ..onOrder = _applyOrder
+      ..onReconnect = () => unawaited(refreshOrders());
+    api.onSessionExpired = _forgetSession;
+  }
 
-  late List<Canteen> canteens;
-  late List<Stall> stalls;
-  late List<Product> products;
-  late List<Order> orders;
-  late UserProfile currentUser;
+  final SharedPreferences _prefs;
+  final ApiClient api;
+  late final Realtime _realtime;
+
+  List<Canteen> canteens = [];
+  List<Stall> stalls = [];
+  List<Product> products = [];
+  List<Order> orders = [];
+  UserProfile currentUser = _loggedOut;
   List<CartLine> cart = [];
   String pickupSlot = 'now';
   int selectedCanteenId = 1;
-  int demoClockMultiplier = 1;
-  final double convenienceFee = 5; // Flat ₹5 per order
+  int demoClockMultiplier = 1; // kept for the header's demo control; timers now follow the server clock
+  double convenienceFee = 5; // the server decides; updated from each order
+
+  /// True when the last menu refresh failed and the menu shown may be out of date.
+  bool menuOffline = false;
 
   List<StockShortage> stockShortages = [];
   Order? activePendingOrder;
   int holdSecondsLeft = 300;
   bool isHoldActive = false;
   int holdExpiredCount = 0;
-  int _nextCodeSeed = 346;
   Timer? _holdTimer;
-  final _rand = Random();
+  DateTime? _holdExpiresAt;
+
+  // An order the server created with shortages, waiting for the student's "take available / remove" answers.
+  int? _unconfirmedOrderId;
+  final Map<int, String> _shortageDecisions = {};
+  bool _shortagesAnswered = false;
 
   static Future<AppState> load() async {
     final prefs = await SharedPreferences.getInstance();
     final s = AppState._(prefs);
     s._init();
+    unawaited(s.refresh());
     return s;
   }
 
   void _init() {
-    final menu = jsonDecode(kMenuJson) as Map<String, dynamic>;
-    canteens = (menu['canteens'] as List).map((e) => Canteen.fromJson(e as Map<String, dynamic>)).toList();
-    stalls = (menu['stalls'] as List).map((e) => Stall.fromJson(e as Map<String, dynamic>)).toList();
-    products = (menu['products'] as List).map((e) => Product.fromJson(e as Map<String, dynamic>)).toList();
-    orders = [_seedOrder()];
+    // Show something straight away: the last menu from the server, or the bundled demo menu on first start.
+    if (!_loadMenuJson(_prefs.getString(_menuCacheKey))) _loadBundledMenu();
 
-    currentUser = UserProfile(userId: 1, name: 'Priya R.', phone: _demoPhone, registerNo: 'ENG2024-8842', isLoggedIn: true);
     final rawUser = _prefs.getString(_userKey);
-    if (rawUser != null) {
+    if (api.hasSession && rawUser != null) {
       try {
         currentUser = UserProfile.fromJson(jsonDecode(rawUser) as Map<String, dynamic>);
       } catch (_) {}
     }
 
-    // Everything the student would lose if Android closes the app in the background is kept on the phone.
     final raw = _prefs.getString(_stateKey);
     if (raw != null) {
       try {
         final j = jsonDecode(raw) as Map<String, dynamic>;
-        orders = (j['orders'] as List).map((e) => Order.fromJson(e as Map<String, dynamic>)).toList();
-        final stock = (j['stock'] as Map<String, dynamic>);
-        for (final p in products) {
-          final v = stock['${p.id}'];
-          if (v is int) p.stock = v;
-        }
         cart = (j['cart'] as List).map((e) => CartLine.fromJson(e as Map<String, dynamic>)).toList();
         cart.removeWhere((l) => productById(l.productId) == null);
         selectedCanteenId = (j['selected_canteen_id'] as int?) ?? 1;
         pickupSlot = (j['pickup_slot'] as String?) ?? 'now';
-        _nextCodeSeed = (j['next_code_seed'] as int?) ?? 346;
-        // A checkout that was waiting for payment when the app closed can never complete: release its stock.
-        for (final o in orders.where((o) => o.status == 'pending')) {
-          o.status = 'expired';
-          for (final it in o.bills.expand((b) => b.items)) {
-            productById(it.productId)?.stock += it.quantity;
-          }
-        }
-      } catch (_) {
-        // corrupted save: start from the demo data
-      }
+      } catch (_) {}
     }
-  }
-
-  Order _seedOrder() {
-    final now = DateTime.now();
-    return Order(
-      orderId: 1001, userId: 1, canteenId: 1, canteenName: 'Main Canteen',
-      subtotal: 140, tax: 7, convenienceFee: 5, total: 152, pickupSlot: 'now', status: 'paid',
-      createdAt: now.subtract(const Duration(minutes: 5)),
-      bills: [
-        StallBill(
-          stallOrderId: 2001, orderId: 1001, stallId: 1, canteenId: 1, stallName: 'Burger Hub', billPrefix: 'BH',
-          billNo: 'BH-0117', pickupCode: '345', subtotal: 140, tax: 7, total: 147, status: 'accepted',
-          estimatedTimeMins: 6, estimatedReadyTime: '1:02 PM', createdAt: now.subtract(const Duration(minutes: 4)),
-          items: [
-            BillItem(itemId: 3001, productId: 101, productName: 'Cheese Burger', price: 80, gstRate: 5, quantity: 1),
-            BillItem(itemId: 3002, productId: 102, productName: 'Veg Burger', price: 60, gstRate: 5, quantity: 1),
-          ],
-        ),
-      ],
-    );
+    if (currentUser.isLoggedIn) _realtime.connect();
   }
 
   void _save() {
-    final state = {
-      'orders': orders.map((o) => o.toJson()).toList(),
-      'stock': {for (final p in products) '${p.id}': p.stock},
+    _prefs.setString(_stateKey, jsonEncode({
       'cart': cart.map((l) => l.toJson()).toList(),
       'selected_canteen_id': selectedCanteenId,
       'pickup_slot': pickupSlot,
-      'next_code_seed': _nextCodeSeed,
-    };
-    _prefs.setString(_stateKey, jsonEncode(state));
+    }));
   }
 
   /// Save and redraw. Every change goes through here.
   void _changed() {
     _save();
+    notifyListeners();
+  }
+
+  // ---------------- loading from the server ----------------
+
+  /// Menu, profile and orders. Called at start, after login, and after payment.
+  Future<void> refresh() async {
+    await refreshMenu();
+    if (!currentUser.isLoggedIn) return;
+    try {
+      final me = await api.get('/me');
+      currentUser = userFromApi(me['user'] as Map<String, dynamic>);
+      _prefs.setString(_userKey, jsonEncode(currentUser.toJson()));
+    } on ApiException catch (_) {
+      // offline: keep the saved profile
+    }
+    await refreshOrders();
+  }
+
+  Future<void> refreshMenu() async {
+    if (!currentUser.isLoggedIn) return; // the menu needs a login
+    try {
+      final list = await api.get('/canteens');
+      final ids = (list['canteens'] as List).map((c) => (c as Map<String, dynamic>)['id'] as String).toList();
+      final menus = await Future.wait(ids.map((id) => api.get('/canteens/$id/menu')));
+      final cache = jsonEncode({'canteens': list['canteens'], 'menus': menus});
+      _loadMenuJson(cache);
+      _prefs.setString(_menuCacheKey, cache);
+      menuOffline = false;
+      cart.removeWhere((l) => productById(l.productId) == null);
+    } on ApiException catch (_) {
+      menuOffline = true;
+    }
+    _changed();
+  }
+
+  bool _loadMenuJson(String? raw) {
+    if (raw == null) return false;
+    try {
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      final distances = {for (final c in _bundled().canteens) c.id: c.distanceMeters};
+      final newCanteens = <Canteen>[];
+      final newStalls = <Stall>[];
+      final newProducts = <Product>[];
+      for (final c in (j['canteens'] as List).cast<Map<String, dynamic>>()) {
+        final id = int.parse(c['id'] as String);
+        newCanteens.add(canteenFromApi(c, distanceMeters: distances[id] ?? 0));
+      }
+      for (final m in (j['menus'] as List).cast<Map<String, dynamic>>()) {
+        final canteenId = int.parse((m['canteen'] as Map<String, dynamic>)['id'] as String);
+        for (final st in (m['stalls'] as List).cast<Map<String, dynamic>>()) {
+          newStalls.add(stallFromApi(st, canteenId));
+          for (final p in (st['products'] as List).cast<Map<String, dynamic>>()) {
+            newProducts.add(productFromApi(p, canteenId));
+          }
+        }
+      }
+      if (newCanteens.isEmpty) return false;
+      canteens = newCanteens;
+      stalls = newStalls;
+      products = newProducts;
+      if (canteenById(selectedCanteenId) == null) selectedCanteenId = canteens.first.id;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  ({List<Canteen> canteens, List<Stall> stalls, List<Product> products}) _bundled() {
+    final menu = jsonDecode(kMenuJson) as Map<String, dynamic>;
+    return (
+      canteens: (menu['canteens'] as List).map((e) => Canteen.fromJson(e as Map<String, dynamic>)).toList(),
+      stalls: (menu['stalls'] as List).map((e) => Stall.fromJson(e as Map<String, dynamic>)).toList(),
+      products: (menu['products'] as List).map((e) => Product.fromJson(e as Map<String, dynamic>)).toList(),
+    );
+  }
+
+  void _loadBundledMenu() {
+    final b = _bundled();
+    canteens = b.canteens;
+    stalls = b.stalls;
+    products = b.products;
+  }
+
+  Future<void> refreshOrders() async {
+    if (!currentUser.isLoggedIn) return;
+    try {
+      final r = await api.get('/orders?limit=30');
+      orders = (r['orders'] as List).map((o) => orderFromApi(o as Map<String, dynamic>)).toList();
+      notifyListeners();
+    } on ApiException catch (_) {}
+  }
+
+  /// A bill changed on the server (vendor accepted, ready, handed over…): update it in place.
+  void _applyBill(Map<String, dynamic> json) {
+    final bill = billFromApi(json);
+    for (final o in orders) {
+      final i = o.bills.indexWhere((b) => b.stallOrderId == bill.stallOrderId);
+      if (i > -1) {
+        o.bills[i] = bill;
+        notifyListeners();
+        return;
+      }
+    }
+    unawaited(refreshOrders()); // a bill we have not seen yet
+  }
+
+  void _applyOrder(Map<String, dynamic> json) {
+    final order = orderFromApi(json);
+    final i = orders.indexWhere((o) => o.orderId == order.orderId);
+    if (i > -1) {
+      orders[i] = order;
+    } else {
+      orders.insert(0, order);
+    }
     notifyListeners();
   }
 
@@ -151,24 +247,24 @@ class AppState extends ChangeNotifier {
   Canteen? get cartCanteen => canteenById(selectedCanteenId);
   int get cartItemCount => cart.fold(0, (s, l) => s + l.quantity);
 
-  bool get hasActiveOrder => orders.any((o) =>
-      o.status == 'paid' &&
-      o.userId == currentUser.userId &&
-      o.bills.any((b) => const ['waiting_for_acceptance', 'accepted', 'preparing', 'ready'].contains(b.status)));
+  static const _openBillStatuses = ['waiting_for_acceptance', 'accepted', 'preparing', 'ready'];
+
+  bool get hasActiveOrder => orders.any((o) => o.status == 'paid' && o.bills.any((b) => _openBillStatuses.contains(b.status)));
 
   List<StallBill> getStudentBills() {
-    final bills = orders.where((o) => o.status == 'paid' && o.userId == currentUser.userId).expand((o) => o.bills).toList();
+    final bills = orders.where((o) => o.status == 'paid').expand((o) => o.bills).toList();
     bills.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return bills;
   }
 
+  /// Rough busy level from the student's own view of open bills (the server's busy level comes later).
   String getLiveBusyLevel(int canteenId) {
     final open = stalls.where((s) => s.canteenId == canteenId && s.status == 'open').length;
     if (open == 0) return 'Low';
     final active = orders
         .where((o) => o.status == 'paid' && o.canteenId == canteenId)
         .expand((o) => o.bills)
-        .where((b) => const ['waiting_for_acceptance', 'accepted', 'preparing', 'ready'].contains(b.status))
+        .where((b) => _openBillStatuses.contains(b.status))
         .length;
     final ratio = active / open;
     if (ratio < 4) return 'Low';
@@ -176,26 +272,49 @@ class AppState extends ChangeNotifier {
     return 'High';
   }
 
-  // ---------------- login ----------------
-  void completeStudentLogin(String name, String phone, String regNo) {
-    final digits = phone.replaceAll(RegExp(r'\D'), '');
-    final id = digits == _demoPhone ? 1 : (int.tryParse(digits.length > 10 ? digits.substring(digits.length - 10) : digits) ?? DateTime.now().millisecondsSinceEpoch);
-    currentUser = UserProfile(
-      userId: id,
-      name: name.isEmpty ? 'Student' : name,
-      phone: phone.isEmpty ? '9876543210' : phone,
-      registerNo: regNo.isEmpty ? 'CAMPUS-2026' : regNo,
-      isLoggedIn: true,
-    );
+  // ---------------- login (OTP) ----------------
+
+  /// Asks the server to send a code. Returns the code itself in development builds of the server (devCode), else null.
+  Future<String?> requestOtp(String phone) async {
+    final r = await api.post('/auth/otp', {'phone': phone});
+    return r['devCode'] as String?;
+  }
+
+  /// Checks the code. New phone numbers become student accounts (name required). Throws ApiException on failure.
+  Future<void> verifyOtp({required String phone, required String code, required String name, String? registerNo}) async {
+    final r = await api.post('/auth/verify', {
+      'phone': phone,
+      'code': code,
+      if (name.isNotEmpty) 'name': name,
+      if (registerNo != null && registerNo.isNotEmpty) 'registerNo': registerNo,
+    });
+    final user = userFromApi(r['user'] as Map<String, dynamic>);
+    if ((r['user'] as Map<String, dynamic>)['role'] != 'student') {
+      throw ApiException(403, 'NOT_A_STUDENT', 'This number belongs to a stall account. Use the Brunchy Vendor app.');
+    }
+    await api.saveSession(r['accessToken'] as String, r['refreshToken'] as String);
+    currentUser = user;
     _prefs.setString(_userKey, jsonEncode(currentUser.toJson()));
+    _realtime.connect();
     _changed();
+    unawaited(refresh());
   }
 
   void logoutStudent() {
-    currentUser = currentUser.copyWith(isLoggedIn: false);
+    final rt = api.refreshToken;
+    if (rt != null) unawaited(api.post('/auth/logout', {'refreshToken': rt}).then((_) {}, onError: (_) {}));
+    _forgetSession();
+  }
+
+  void _forgetSession() {
+    _realtime.disconnect();
+    unawaited(api.clearSession());
+    _prefs.remove(_userKey);
+    currentUser = _loggedOut;
     cart = [];
-    // Remember the signed-out state; removing it would sign the demo student back in on restart.
-    _prefs.setString(_userKey, jsonEncode(currentUser.toJson()));
+    orders = [];
+    _stopHold();
+    activePendingOrder = null;
     _changed();
   }
 
@@ -211,15 +330,14 @@ class AppState extends ChangeNotifier {
 
   void setDemoClockMultiplier(int m) {
     demoClockMultiplier = m;
-    if (isHoldActive) _startHoldTimer();
     notifyListeners();
   }
 
-  // ---------------- cart ----------------
-  /// Returns null on success, or the reason it could not be added.
+  // ---------------- cart (on the phone until checkout) ----------------
+  /// Returns null on success, or the reason it could not be added. The server checks everything again at checkout.
   String? addToCart(Product product, [int quantity = 1]) {
     final canteen = canteenById(product.canteenId);
-    if (canteen == null || canteen.status != 'open') return 'This canteen is currently closed.';
+    if (canteen == null || canteen.status != 'open') return 'This canteen is not taking orders right now.';
     final stall = stallById(product.stallId);
     if (stall == null || stall.status != 'open') return '${stall?.name ?? 'Stall'} is currently ${stall?.status ?? 'closed'}.';
     if (cart.isNotEmpty && productById(cart.first.productId)?.canteenId != product.canteenId) {
@@ -258,102 +376,95 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------- checkout & payment ----------------
-  CheckoutResult startCheckout() {
+  bool _checkoutBusy = false;
+
+  /// Reserves the cart on the server (5-minute hold). Shortages open the "Only N left" sheet;
+  /// once all are answered, calling this again confirms that order instead of starting a new one.
+  Future<CheckoutResult> startCheckout() async {
     if (cart.isEmpty) return const CheckoutResult(success: false, message: 'Cart is empty');
-    for (final line in cart) {
-      final p = productById(line.productId)!;
-      final stall = stallById(p.stallId);
-      if (stall == null || stall.status != 'open') {
-        return CheckoutResult(success: false, message: '${stall?.name ?? 'Stall'} is currently ${stall?.status ?? 'closed'}. Please remove their items.');
-      }
-    }
-    final shortages = <StockShortage>[];
-    for (final line in cart) {
-      final p = productById(line.productId)!;
-      if (line.quantity > p.stock) shortages.add(StockShortage(product: p, requested: line.quantity, available: p.stock));
-    }
-    if (shortages.isNotEmpty) {
-      stockShortages = shortages;
-      notifyListeners();
-      return const CheckoutResult(success: false, shortage: true);
-    }
-
-    final orderId = DateTime.now().millisecondsSinceEpoch;
-    final canteenId = productById(cart.first.productId)!.canteenId;
-    final canteen = canteenById(canteenId)!;
-    final byStall = <int, List<CartLine>>{};
-    for (final line in cart) {
-      byStall.putIfAbsent(productById(line.productId)!.stallId, () => []).add(line);
-    }
-    final bills = <StallBill>[];
-    byStall.forEach((stallId, lines) {
-      final stall = stallById(stallId)!;
-      final subtotal = lines.fold<double>(0, (s, l) => s + productById(l.productId)!.price * l.quantity);
-      final tax = _round2(subtotal * stall.gstRate / 100);
-      final stallOrderId = orderId + stallId;
-      var i = 0;
-      bills.add(StallBill(
-        stallOrderId: stallOrderId, orderId: orderId, stallId: stallId, canteenId: canteenId,
-        stallName: stall.name, billPrefix: stall.billPrefix, subtotal: subtotal, tax: tax,
-        total: _round2(subtotal + tax), status: 'awaiting_payment', estimatedTimeMins: stall.avgPrepMins,
-        createdAt: DateTime.now(),
-        items: lines.map((l) {
-          final p = productById(l.productId)!;
-          return BillItem(itemId: stallOrderId * 10 + i++, productId: p.id, productName: p.name, price: p.price, gstRate: stall.gstRate, quantity: l.quantity);
-        }).toList(),
-      ));
-    });
-    final sub = bills.fold<double>(0, (s, b) => s + b.subtotal);
-    final tax = _round2(bills.fold<double>(0, (s, b) => s + b.tax));
-    final order = Order(
-      orderId: orderId, userId: currentUser.userId, canteenId: canteenId, canteenName: canteen.name,
-      subtotal: sub, tax: tax, convenienceFee: convenienceFee, total: _round2(sub + tax + convenienceFee),
-      pickupSlot: pickupSlot, status: 'pending', createdAt: DateTime.now(), bills: bills,
-    );
-    for (final line in cart) {
-      final p = productById(line.productId)!;
-      p.stock = max(0, p.stock - line.quantity);
-    }
-    activePendingOrder = order;
-    orders.insert(0, order);
-    isHoldActive = true;
-    holdSecondsLeft = 300;
-    _startHoldTimer();
-    _changed();
-    return const CheckoutResult(success: true);
-  }
-
-  void _startHoldTimer() {
-    _holdTimer?.cancel();
-    final ms = max(100, (1000 / demoClockMultiplier).floor());
-    _holdTimer = Timer.periodic(Duration(milliseconds: ms), (_) {
-      if (!isHoldActive) {
-        _holdTimer?.cancel();
-        return;
-      }
-      if (holdSecondsLeft <= 1) {
-        holdSecondsLeft = 0;
-        isHoldActive = false;
-        _holdTimer?.cancel();
-        holdExpiredCount++;
-        final pending = activePendingOrder;
-        if (pending != null) {
-          pending.status = 'expired';
-          _releaseStock(pending);
-        }
-        activePendingOrder = null;
-        _changed();
+    if (_checkoutBusy) return const CheckoutResult(success: false);
+    _checkoutBusy = true;
+    try {
+      Map<String, dynamic> r;
+      final pendingConfirm = _unconfirmedOrderId;
+      if (pendingConfirm != null && _shortagesAnswered) {
+        r = await api.post('/checkout/$pendingConfirm/confirm-partial', {
+          'lines': [for (final e in _shortageDecisions.entries) {'productId': '${e.key}', 'action': e.value}],
+        });
       } else {
-        holdSecondsLeft--;
-        notifyListeners();
+        if (pendingConfirm != null) unawaited(_cancelOnServer(pendingConfirm)); // an abandoned shortage prompt
+        final canteenId = productById(cart.first.productId)?.canteenId ?? selectedCanteenId;
+        r = await api.post('/checkout', {
+          'canteenId': '$canteenId',
+          'items': [for (final l in cart) {'productId': '${l.productId}', 'qty': l.quantity}],
+          'idempotencyKey': _newKey(),
+        });
       }
-    });
+      _unconfirmedOrderId = null;
+      _shortageDecisions.clear();
+      _shortagesAnswered = false;
+
+      final order = orderFromApi(r['order'] as Map<String, dynamic>, pickupSlot: pickupSlot);
+      convenienceFee = order.convenienceFee;
+      if (order.status == 'cancelled') {
+        cart = [];
+        _changed();
+        return const CheckoutResult(success: false, message: 'Nothing left in the cart to order.');
+      }
+      if (r['needsConfirmation'] == true) {
+        _unconfirmedOrderId = order.orderId;
+        stockShortages = [
+          for (final sh in (r['shortages'] as List).cast<Map<String, dynamic>>())
+            if (productById(int.parse(sh['productId'] as String)) case final p?)
+              StockShortage(product: p, requested: (sh['requested'] as num).toInt(), available: (sh['available'] as num).toInt()),
+        ];
+        notifyListeners();
+        return const CheckoutResult(success: false, shortage: true);
+      }
+      _startHold(order, r['payment'] as Map<String, dynamic>?);
+      _changed();
+      return const CheckoutResult(success: true);
+    } on ApiException catch (e) {
+      unawaited(refreshMenu()); // stock or stall status changed: show the latest
+      return CheckoutResult(success: false, message: e.message);
+    } finally {
+      _checkoutBusy = false;
+    }
   }
 
-  void _releaseStock(Order o) {
-    for (final it in o.bills.expand((b) => b.items)) {
-      productById(it.productId)?.stock += it.quantity;
+  void _startHold(Order order, Map<String, dynamic>? payment) {
+    activePendingOrder = order;
+    final expires = payment?['expiresAt'] as String?;
+    _holdExpiresAt = expires == null ? api.serverNow().add(const Duration(minutes: 5)) : DateTime.parse(expires);
+    isHoldActive = true;
+    _tickHold();
+    _holdTimer?.cancel();
+    _holdTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tickHold());
+  }
+
+  /// Counts down with the server's clock, so changing the phone's time changes nothing.
+  void _tickHold() {
+    final end = _holdExpiresAt;
+    if (!isHoldActive || end == null) return;
+    final left = end.difference(api.serverNow()).inSeconds;
+    if (left <= 0) {
+      holdSecondsLeft = 0;
+      _stopHold();
+      holdExpiredCount++;
+      activePendingOrder?.status = 'expired';
+      activePendingOrder = null;
+      _changed();
+      unawaited(refreshMenu());
+    } else {
+      holdSecondsLeft = left;
+      notifyListeners();
     }
+  }
+
+  void _stopHold() {
+    isHoldActive = false;
+    _holdTimer?.cancel();
+    _holdTimer = null;
   }
 
   void handleShortageChoice(int productId, bool takeAvailable) {
@@ -362,7 +473,9 @@ class AppState extends ChangeNotifier {
       if (x.product.id == productId) s = x;
     }
     if (s == null) return;
-    if (takeAvailable && s.available > 0) {
+    final keep = takeAvailable && s.available > 0;
+    _shortageDecisions[productId] = keep ? 'take_available' : 'remove';
+    if (keep) {
       for (final l in cart) {
         if (l.productId == productId) l.quantity = s.available;
       }
@@ -370,6 +483,7 @@ class AppState extends ChangeNotifier {
       cart.removeWhere((l) => l.productId == productId);
     }
     stockShortages = stockShortages.where((x) => x.product.id != productId).toList();
+    if (stockShortages.isEmpty) _shortagesAnswered = true;
     _changed();
   }
 
@@ -378,85 +492,70 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The payment sheet was closed: release the held stock on the server straight away.
   void cancelCheckoutHold() {
     final pending = activePendingOrder;
     if (pending != null) {
-      _releaseStock(pending);
       pending.status = 'cancelled';
+      unawaited(_cancelOnServer(pending.orderId));
     }
-    isHoldActive = false;
-    _holdTimer?.cancel();
+    _stopHold();
     activePendingOrder = null;
     _changed();
   }
 
-  /// Simulated payment (same as the React app): no money is charged.
+  Future<void> _cancelOnServer(int orderId) async {
+    try {
+      await api.post('/checkout/$orderId/cancel');
+    } on ApiException catch (_) {
+      // already paid/expired, or offline: the server's 5-minute expiry releases it anyway
+    }
+    unawaited(refreshMenu());
+  }
+
+  /// Pays with the backend's mock gateway (development: no money moves).
+  /// TODO(Razorpay milestone): open the Razorpay checkout here; the server confirms through its webhook.
   Future<int?> completeUpiPayment(String method) async {
     final pending = activePendingOrder;
     if (pending == null) return null;
-    await Future<void>.delayed(const Duration(milliseconds: 800));
-    if (activePendingOrder != pending) return null; // hold expired or cancelled meanwhile
-    var idx = 0;
-    for (final b in pending.bills) {
-      b.billNo = '${b.billPrefix}-${100 + _rand.nextInt(900)}';
-      b.status = 'waiting_for_acceptance';
-      b.createdAt = DateTime.now();
-      idx++;
+    final upiApp = method.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+    final r = await api.post('/payments/mock/${pending.orderId}/pay', {'upiApp': upiApp});
+    if (r['result'] != 'paid' && r['result'] != 'replay') {
+      throw ApiException(402, 'PAYMENT_NOT_COMPLETED', 'Payment was not completed. Please try again.');
     }
-    pending.status = 'paid';
+    if (activePendingOrder == pending) activePendingOrder = null;
+    _stopHold();
     cart = [];
-    isHoldActive = false;
-    _holdTimer?.cancel();
-    activePendingOrder = null;
     _changed();
-    return idx > 0 ? pending.orderId : null;
+    await refreshOrders();
+    unawaited(refreshMenu());
+    return pending.orderId;
   }
 
   // ---------------- after payment ----------------
-  StallBill? _bill(int stallOrderId) {
-    for (final o in orders) {
-      for (final b in o.bills) {
-        if (b.stallOrderId == stallOrderId) return b;
-      }
+
+  /// Cancels one bill before the kitchen starts it. Returns an error message, or null when done.
+  Future<String?> cancelStudentBill(int stallOrderId) async {
+    try {
+      final r = await api.post('/bills/$stallOrderId/cancel');
+      _applyBill(r['bill'] as Map<String, dynamic>);
+      unawaited(refreshMenu());
+      return null;
+    } on ApiException catch (e) {
+      unawaited(refreshOrders());
+      return e.message;
     }
-    return null;
   }
 
-  void cancelStudentBill(int stallOrderId) {
-    final b = _bill(stallOrderId);
-    if (b == null || !const ['waiting_for_acceptance', 'accepted', 'new'].contains(b.status)) return;
-    b.status = 'refunded';
-    b.cancelReason = 'Student cancelled';
-    for (final it in b.items) {
-      productById(it.productId)?.stock += it.quantity;
-    }
-    _changed();
-  }
-
-  /// Demo stand-in for the stall accepting the order: assigns the 3-digit pickup code.
-  void vendorAcceptOrder(int stallOrderId, [int prepMins = 6]) {
-    final b = _bill(stallOrderId);
-    if (b == null) return;
-    final code = _nextCodeSeed.toString().padLeft(3, '0');
-    _nextCodeSeed = _nextCodeSeed >= 999 ? 100 : _nextCodeSeed + 1;
-    b.status = 'accepted';
-    b.pickupCode = code;
-    b.estimatedTimeMins = prepMins;
-    b.estimatedReadyTime = formatTime2Digit(DateTime.now().add(Duration(minutes: prepMins)));
-    _changed();
-  }
-
-  void handOverBill(int stallOrderId) {
-    final b = _bill(stallOrderId);
-    if (b == null) return;
-    b.status = 'completed';
-    b.isBlurredSealed = true;
-    _changed();
+  String _newKey() {
+    final r = Random.secure();
+    return List.generate(24, (_) => r.nextInt(16).toRadixString(16)).join();
   }
 
   @override
   void dispose() {
     _holdTimer?.cancel();
+    _realtime.disconnect();
     super.dispose();
   }
 }

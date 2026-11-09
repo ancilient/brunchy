@@ -11,6 +11,7 @@ import { insertRefund } from './payments.js';
 
 const MAX_CODE_ATTEMPTS = 4; // same as the vendor app
 const CODE_LOCK_MINUTES = 5;
+const UNDO_READY_SECONDS = 10; // the vendor app offers 5 seconds; a little slack for a slow network
 
 export const REJECT_REASONS = ['OUT_OF_STOCK', 'ITEM_UNAVAILABLE', 'KITCHEN_ISSUE', 'STALL_EMERGENCY', 'STALL_REJECTED'] as const;
 
@@ -59,13 +60,68 @@ const LIST_FILTERS: Record<string, readonly string[]> = {
   all: ['new', 'accepted', 'preparing', 'ready', 'collected', 'rejected', 'cancelled', 'refunded'],
 };
 
-/** The live board: this stall's paid bills for today (a vendor never sees another stall's bills). */
-export async function listVendorBills(user: AuthUser, filter = 'active') {
+/**
+ * The live board: this stall's paid bills (a vendor never sees another stall's bills).
+ * Today by default; `date` (YYYY-MM-DD, IST) shows an earlier day for order history.
+ */
+export async function listVendorBills(user: AuthUser, filter = 'active', date?: string) {
   const stallId = vendorStall(user);
   const statuses = LIST_FILTERS[filter];
   if (!statuses) throw badRequest('INVALID_FILTER', `status must be one of: ${Object.keys(LIST_FILTERS).join(', ')}`);
-  const bills = await loadBills(pool, `so.stall_id = ? AND so.bill_date = ${IST_TODAY} AND so.status IN (?)`, [stallId, statuses], 'so.stall_order_id ASC');
+  const day = date ? '?' : IST_TODAY;
+  const params = date ? [stallId, date, statuses] : [stallId, statuses];
+  const bills = await loadBills(pool, `so.stall_id = ? AND so.bill_date = ${day} AND so.status IN (?)`, params, 'so.stall_order_id ASC');
   return { bills: bills.map(({ userId: _u, ...b }) => b) };
+}
+
+/** The vendor's stall and its current state (open / paused until / closed). */
+export async function getVendorStall(user: AuthUser) {
+  const stallId = vendorStall(user);
+  const s = await one(pool, 'SELECT s.*, c.canteen_name FROM stalls s JOIN canteens c ON c.canteen_id = s.canteen_id WHERE s.stall_id = ?', [stallId]);
+  if (!s) throw notFound('STALL_NOT_FOUND', 'Stall not found');
+  return {
+    stall: {
+      id: String(s.stall_id),
+      name: s.stall_name,
+      canteenId: String(s.canteen_id),
+      canteenName: s.canteen_name,
+      billPrefix: s.bill_prefix,
+      status: effectiveStallStatus(s as never),
+      pausedUntil: iso(s.paused_until),
+      avgPrepMinutes: s.avg_prep_minutes,
+      updatedAt: iso(s.updated_at),
+    },
+  };
+}
+
+/** Every item of the vendor's stall (also the ones switched off or waiting for approval), for the menu and stock screens. */
+export async function listVendorProducts(user: AuthUser) {
+  const stallId = vendorStall(user);
+  const products = await rows(
+    pool,
+    `SELECT p.*, (dm.product_id IS NOT NULL) AS on_menu FROM products p
+       LEFT JOIN daily_menu dm ON dm.product_id = p.product_id AND dm.menu_date = ${IST_TODAY}
+      WHERE p.stall_id = ? ORDER BY p.product_name`,
+    [stallId],
+  );
+  return {
+    products: products.map((p) => ({
+      id: String(p.product_id),
+      stallId: String(p.stall_id),
+      name: p.product_name,
+      category: p.category,
+      description: p.description,
+      price: p.price,
+      isVeg: Boolean(p.is_veg),
+      imageUrl: p.image_url,
+      prepMinutes: p.prep_minutes,
+      stockQuantity: p.stock_quantity,
+      dailyDefaultQty: p.daily_default_qty,
+      isActive: Boolean(p.is_active),
+      approvalStatus: p.approval_status,
+      onTodaysMenu: Boolean(p.on_menu),
+    })),
+  };
 }
 
 /** Finds today's open bill with this pickup code at the vendor's stall. */
@@ -93,6 +149,16 @@ export async function setBillStatus(user: AuthUser, billId: number, input: { sta
   await withTx(async (conn) => {
     const bill = await lockBill(conn, billId);
     if (bill.stall_id !== stallId) throw forbidden('WRONG_STALL', 'This bill belongs to another stall');
+    // Undo "Ready" (vendor app's 5-second undo): Ready → Preparing, only just after it was marked Ready.
+    if (bill.status === 'ready' && input.status === 'preparing') {
+      const readyAt = bill.ready_at as Date | null;
+      if (!readyAt || Date.now() - readyAt.getTime() > UNDO_READY_SECONDS * 1000) {
+        throw conflict('UNDO_WINDOW_EXPIRED', 'Too late to undo Ready', { readyAt: iso(readyAt) });
+      }
+      await exec(conn, "UPDATE stall_orders SET status = 'preparing', ready_at = NULL WHERE stall_order_id = ?", [billId]);
+      await audit(conn, actorOf(user), 'bill_undo_ready', 'stall_orders', billId, { status: 'ready' }, { status: 'preparing' });
+      return;
+    }
     if (!(rule.from as readonly string[]).includes(bill.status)) {
       throw conflict('INVALID_TRANSITION', `A ${bill.status} bill cannot be marked ${input.status}`, { status: bill.status });
     }
@@ -202,25 +268,71 @@ export async function updateProduct(user: AuthUser, productId: number, input: { 
   return { product: { id: String(p!.product_id), name: p!.product_name, stockQuantity: p!.stock_quantity, isActive: Boolean(p!.is_active), price: p!.price } };
 }
 
-/** Pause (auto-resumes), Close for today, or Resume. Paid orders already on the board continue normally. */
-export async function setStallStatus(user: AuthUser, input: { action: 'pause' | 'close' | 'resume'; minutes?: number }) {
+/**
+ * Pause (auto-resumes), Close for today, Resume, or Emergency stop.
+ * Pause and Close: paid orders already on the board continue normally.
+ * Emergency stop (gas cut, power failure…): the stall closes and every paid order not yet started is
+ * rejected and refunded (STALL_EMERGENCY); orders already cooking stay on the board.
+ */
+export async function setStallStatus(
+  user: AuthUser,
+  input: { action: 'pause' | 'close' | 'resume' | 'emergency'; minutes?: number; reason?: string; detail?: string },
+) {
   const stallId = vendorStall(user);
-  const canteenId = await withTx(async (conn) => {
+  const { canteenId, refundedBillIds, preparingBillIds } = await withTx(async (conn) => {
     const s = await one(conn, 'SELECT * FROM stalls WHERE stall_id = ? FOR UPDATE', [stallId]);
+    let refunded: number[] = [];
+    let preparing: number[] = [];
     if (input.action === 'pause') {
       if (!input.minutes) throw badRequest('MINUTES_REQUIRED', 'Pause needs minutes (10, 15 or 30)');
       await exec(conn, "UPDATE stalls SET status = 'paused', paused_until = UTC_TIMESTAMP() + INTERVAL ? MINUTE WHERE stall_id = ?", [input.minutes, stallId]);
-    } else if (input.action === 'close') {
+    } else if (input.action === 'close' || input.action === 'emergency') {
       await exec(conn, "UPDATE stalls SET status = 'closed', paused_until = NULL WHERE stall_id = ?", [stallId]);
     } else {
       await exec(conn, "UPDATE stalls SET status = 'open', paused_until = NULL WHERE stall_id = ?", [stallId]);
     }
-    await audit(conn, actorOf(user), `stall_${input.action}`, 'stalls', stallId, { status: s!.status }, input);
-    return s!.canteen_id as number;
+    if (input.action === 'emergency') {
+      const notStarted = await rows<{ stall_order_id: number; order_id: number; total: number }>(
+        conn,
+        "SELECT stall_order_id, order_id, total FROM stall_orders WHERE stall_id = ? AND status = 'new' ORDER BY stall_order_id FOR UPDATE",
+        [stallId],
+      );
+      for (const b of notStarted) {
+        await exec(
+          conn,
+          "UPDATE stall_orders SET status = 'rejected', cancelled_at = UTC_TIMESTAMP(), cancel_reason = 'STALL_EMERGENCY' WHERE stall_order_id = ? AND status = 'new'",
+          [b.stall_order_id],
+        );
+        await returnStock(conn, b.stall_order_id);
+        await insertRefund(conn, {
+          orderId: b.order_id,
+          billId: b.stall_order_id,
+          paymentId: await successfulPaymentId(conn, b.order_id),
+          amount: b.total,
+          reason: 'STALL_EMERGENCY',
+          requestedBy: user.id,
+        });
+      }
+      refunded = notStarted.map((b) => b.stall_order_id);
+      preparing = (
+        await rows<{ stall_order_id: number }>(
+          conn,
+          "SELECT stall_order_id FROM stall_orders WHERE stall_id = ? AND status IN ('accepted','preparing','ready')",
+          [stallId],
+        )
+      ).map((b) => b.stall_order_id);
+    }
+    await audit(conn, actorOf(user), `stall_${input.action}`, 'stalls', stallId, { status: s!.status }, { ...input, refundedBills: refunded });
+    return { canteenId: s!.canteen_id as number, refundedBillIds: refunded, preparingBillIds: preparing };
   });
   await bustMenuCache([canteenId]);
+  if (refundedBillIds.length) await publishBills(refundedBillIds, 'bill.updated');
   const s = await one(pool, 'SELECT * FROM stalls WHERE stall_id = ?', [stallId]);
-  return { stall: { id: String(stallId), name: s!.stall_name, status: effectiveStallStatus(s as never), pausedUntil: iso(s!.paused_until) } };
+  return {
+    stall: { id: String(stallId), name: s!.stall_name, status: effectiveStallStatus(s as never), pausedUntil: iso(s!.paused_until) },
+    refundedBillIds: refundedBillIds.map(String),
+    preparingBillIds: preparingBillIds.map(String),
+  };
 }
 
 // ---------------------------------------------------------------- student

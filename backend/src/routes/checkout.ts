@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { badRequest } from '../errors.js';
 import { currentUser, requireAuth, requireRole } from '../middleware/auth.js';
 import { byUser, rateLimit } from '../middleware/rateLimit.js';
-import { checkout, confirmPartial } from '../services/checkout.js';
+import { cancelPendingOrder, checkout, confirmPartial } from '../services/checkout.js';
 import { parseId } from '../util.js';
 
 const id = z.union([z.string(), z.number()]).transform((v, ctx) => {
@@ -26,6 +26,13 @@ checkoutRouter.post('/checkout', rateLimit('checkout', 10, 60, byUser), async (r
     .parse(req.body);
   const result = await checkout(currentUser(req).id, body);
   res.status(result.needsConfirmation ? 200 : 201).json(result);
+});
+
+/** Closing the payment sheet: the held stock goes back on sale immediately. Only for unpaid (pending) orders. */
+checkoutRouter.post('/checkout/:orderId/cancel', async (req, res) => {
+  const orderId = parseId(req.params.orderId);
+  if (!orderId) throw badRequest('INVALID_ID', 'Invalid order id');
+  res.json(await cancelPendingOrder(currentUser(req).id, orderId));
 });
 
 checkoutRouter.post('/checkout/:orderId/confirm-partial', async (req, res) => {

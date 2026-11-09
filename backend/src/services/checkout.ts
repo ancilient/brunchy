@@ -6,6 +6,7 @@ import { scheduleHoldExpiry } from '../jobs/holdExpiry.js';
 import { gateway } from '../payments/gateway.js';
 import { billTaxPaise, canteenTakesOrders, effectiveStallStatus, toPaise, toRupees } from '../util.js';
 import { audit } from './audit.js';
+import { releaseHolds } from './holds.js';
 import { bustMenuCache } from './menu.js';
 import { loadOrder } from './orders.js';
 
@@ -246,6 +247,26 @@ export async function describeCheckout(orderId: number) {
         ? { gateway: gateway.name, gatewayOrderRef: order.gatewayOrderRef, amountPaise: toPaise(order.total), currency: 'INR', expiresAt: order.paymentExpiresAt }
         : null,
   };
+}
+
+/** The student closed the payment sheet without paying: release the held stock now instead of after 5 minutes. */
+export async function cancelPendingOrder(userId: number, orderId: number) {
+  const canteenId = await withTx(async (conn) => {
+    const order = await one(conn, 'SELECT * FROM orders WHERE order_id = ? AND user_id = ? FOR UPDATE', [orderId, userId]);
+    if (!order) throw notFound('ORDER_NOT_FOUND', 'Order not found');
+    if (order.status !== 'pending') throw conflict('ORDER_NOT_PENDING', `This order is ${order.status}.`, { status: order.status });
+    await releaseHolds(conn, orderId);
+    await exec(conn, "UPDATE orders SET status = 'cancelled' WHERE order_id = ? AND status = 'pending'", [orderId]);
+    await exec(
+      conn,
+      "UPDATE stall_orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), cancel_reason = 'CANCELLED_BY_USER' WHERE order_id = ? AND status = 'awaiting_payment'",
+      [orderId],
+    );
+    await audit(conn, { id: userId, role: 'student' }, 'checkout_cancelled', 'orders', orderId, { status: 'pending' }, { status: 'cancelled' });
+    return order.canteen_id as number;
+  });
+  await bustMenuCache([canteenId]);
+  return describeCheckout(orderId);
 }
 
 /**

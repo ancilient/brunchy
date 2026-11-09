@@ -12,13 +12,20 @@ class MockAuthRepository implements AuthRepository {
   MockAuthRepository(this._prefs);
 
   @override
-  Future<({Vendor vendor, String token})> login({
-    required String name, required String phone, required String canteenId,
+  Future<String?> requestOtp(String phone) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return '123456'; // mock mode: any 6 digits work
+  }
+
+  @override
+  Future<({Vendor vendor, String token, String stallId, String stallName})> verifyOtp({
+    required String phone,
+    required String code,
   }) async {
-    // TODO(BACKEND-API): API-001 POST /auth/login
     await Future.delayed(const Duration(milliseconds: 600));
-    final vendor = MockData.mockVendor.copyWith(name: name, phone: phone, canteenId: canteenId);
-    return (vendor: vendor, token: MockData.mockToken);
+    final vendor = MockData.mockVendor.copyWith(phone: phone);
+    final stall = MockData.stalls.first;
+    return (vendor: vendor, token: MockData.mockToken, stallId: stall.id, stallName: stall.name);
   }
 
   @override
