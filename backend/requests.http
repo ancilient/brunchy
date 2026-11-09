@@ -1,0 +1,126 @@
+### Sample calls for the VS Code "REST Client" extension (humao.rest-client): click "Send Request" above each one.
+### Walk-through: student logs in → menu → checkout → pays (mock) → vendor accepts → ready → handover with the code.
+### Demo phones (seed): student 9876543210, Burger Hub vendor 9000000001, Juice Corner vendor 9000000002.
+
+@base = http://localhost:4000/api/v1
+
+### Health
+GET {{base}}/health
+
+### 1. Student: ask for a code (devCode is in the response in development)
+# @name studentOtp
+POST {{base}}/auth/otp
+Content-Type: application/json
+
+{ "phone": "9876543210" }
+
+### 2. Student: log in with the code
+# @name student
+POST {{base}}/auth/verify
+Content-Type: application/json
+
+{ "phone": "9876543210", "code": "{{studentOtp.response.body.devCode}}" }
+
+@studentToken = {{student.response.body.accessToken}}
+
+### 3. Canteens
+GET {{base}}/canteens
+Authorization: Bearer {{studentToken}}
+
+### 4. Today's menu of Main Canteen
+GET {{base}}/canteens/1/menu
+Authorization: Bearer {{studentToken}}
+
+### 5. Checkout: 2 Veg Burgers + 1 Mango Juice (two stalls → two bills). Change the idempotencyKey for a new order.
+# @name checkout
+POST {{base}}/checkout
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{ "canteenId": "1", "items": [{ "productId": "102", "qty": 2 }, { "productId": "201", "qty": 1 }], "idempotencyKey": "demo-order-0001" }
+
+@orderId = {{checkout.response.body.order.id}}
+
+### 5b. Only if the checkout said needsConfirmation: keep what is available
+POST {{base}}/checkout/{{orderId}}/confirm-partial
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{ "lines": [] }
+
+### 6. Pay (mock gateway, development only)
+POST {{base}}/payments/mock/{{orderId}}/pay
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{ "upiApp": "gpay" }
+
+### 7. The order with its bills, bill numbers and pickup codes
+# @name order
+GET {{base}}/orders/{{orderId}}
+Authorization: Bearer {{studentToken}}
+
+### 8. Vendor (Burger Hub): log in
+# @name vendorOtp
+POST {{base}}/auth/otp
+Content-Type: application/json
+
+{ "phone": "9000000001" }
+
+###
+# @name vendor
+POST {{base}}/auth/verify
+Content-Type: application/json
+
+{ "phone": "9000000001", "code": "{{vendorOtp.response.body.devCode}}" }
+
+@vendorToken = {{vendor.response.body.accessToken}}
+
+### 9. Vendor: live board
+# @name board
+GET {{base}}/vendor/bills
+Authorization: Bearer {{vendorToken}}
+
+@billId = {{board.response.body.bills[0].id}}
+
+### 10. Vendor: accept (ready in about 6 minutes)
+PATCH {{base}}/vendor/bills/{{billId}}/status
+Authorization: Bearer {{vendorToken}}
+Content-Type: application/json
+
+{ "status": "accepted", "prepMinutes": 6 }
+
+### 11. Vendor: mark ready
+PATCH {{base}}/vendor/bills/{{billId}}/status
+Authorization: Bearer {{vendorToken}}
+Content-Type: application/json
+
+{ "status": "ready" }
+
+### 12. Vendor: hand over with the code the student says (from step 7 / step 9)
+POST {{base}}/vendor/bills/{{billId}}/handover
+Authorization: Bearer {{vendorToken}}
+Content-Type: application/json
+
+{ "code": "{{board.response.body.bills[0].pickupCode}}" }
+
+### 13. Vendor: pause the stall for 10 minutes / resume
+POST {{base}}/vendor/stall/status
+Authorization: Bearer {{vendorToken}}
+Content-Type: application/json
+
+{ "action": "pause", "minutes": 10 }
+
+###
+POST {{base}}/vendor/stall/status
+Authorization: Bearer {{vendorToken}}
+Content-Type: application/json
+
+{ "action": "resume" }
+
+### 14. Vendor: set French Fries stock to 25
+PATCH {{base}}/vendor/products/104
+Authorization: Bearer {{vendorToken}}
+Content-Type: application/json
+
+{ "stockQuantity": 25 }

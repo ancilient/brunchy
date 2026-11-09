@@ -1,6 +1,8 @@
 # Brunchy database (MySQL 8)
 
-**Status:** not started. The full design is in the blueprint, section 10 (*Database design and SQL queries*).
+**Status:** milestone 1 schema done (migrations 001–005) with demo seed data. The full design is in the blueprint,
+section 10 (*Database design and SQL queries*). Apply it with `npm run db:migrate` (or `db:reset`) from `backend/`;
+MySQL itself runs from the root `docker-compose.yml`.
 
 ## Layout
 ```
@@ -10,6 +12,10 @@ database/
 └── seeds/        test data for local development, e.g. 001_demo_menu.sql
                   (start from frontend/web_prototype/src/data/mockData.ts)
 ```
+
+Changes from the blueprint: the QR token columns are replaced by a 3-digit `pickup_code` on `stall_orders`
+(unique among a stall's open bills of the day via the generated `active_code` column), `orders.convenience_fee` is added,
+and `refunds.order_id` allows whole-order refunds (late or duplicate payment).
 
 ## Tables (from blueprint v3.1)
 canteens → stalls → products (strict Canteen > Stall > Product hierarchy), daily_menu, price_change_requests,

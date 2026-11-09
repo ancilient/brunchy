@@ -1,0 +1,39 @@
+# Local development services for the Brunchy backend.
+#   docker compose up -d      start MySQL + Redis in the background
+#   docker compose down       stop them (data is kept in the named volumes)
+#   docker compose down -v    stop and DELETE all local data
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: brunchy-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: brunchy_root
+      MYSQL_DATABASE: brunchy
+      MYSQL_USER: brunchy
+      MYSQL_PASSWORD: brunchy
+    # All DATETIME values are stored in UTC (blueprint 10.1).
+    command: ["--default-time-zone=+00:00", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database/docker-init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pbrunchy_root"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: brunchy-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  mysql-data:
+  redis-data:

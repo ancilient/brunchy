@@ -1,0 +1,40 @@
+# Runs the backend tests on every push and pull request that touches the backend or the database.
+name: Backend tests
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', 'database/**', '.github/workflows/backend-tests.yml']
+  pull_request:
+    paths: ['backend/**', 'database/**', '.github/workflows/backend-tests.yml']
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: brunchy_root
+          MYSQL_DATABASE: brunchy_test
+          MYSQL_USER: brunchy
+          MYSQL_PASSWORD: brunchy
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -pbrunchy_root"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
