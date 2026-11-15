@@ -38,7 +38,7 @@ class MenuScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primaryOrange,
+        backgroundColor: AppColors.primary,
         foregroundColor: AppColors.white,
         icon: const Icon(Icons.add),
         label: const Text('Add Item', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -132,7 +132,7 @@ class MenuScreen extends StatelessWidget {
           }
 
           return RefreshIndicator(
-            color: AppColors.primaryOrange,
+            color: AppColors.primary,
             onRefresh: () => context.read<MenuCubit>().loadMenu(_getStallId()),
             child: ListView(
               padding: const EdgeInsets.only(bottom: 80, top: AppSpacing.sm),
@@ -144,7 +144,7 @@ class MenuScreen extends StatelessWidget {
                     children: [
                       _buildCountBadge('Total', '$total', AppColors.grey700, AppColors.grey100),
                       const SizedBox(width: AppSpacing.sm),
-                      _buildCountBadge('Available', '$available', AppColors.vendorTeal, AppColors.vendorTeal.withValues(alpha: 0.12)),
+                      _buildCountBadge('Available', '$available', AppColors.brandTeal, AppColors.brandTeal.withValues(alpha: 0.12)),
                       const SizedBox(width: AppSpacing.sm),
                       _buildCountBadge('Sold Out', '$soldOut', AppColors.errorRed, AppColors.errorRed.withValues(alpha: 0.12)),
                     ],

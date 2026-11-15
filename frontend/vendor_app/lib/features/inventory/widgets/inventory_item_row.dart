@@ -46,7 +46,7 @@ class InventoryItemRow extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(
                   isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                  color: isSelected ? AppColors.primaryOrange : AppColors.grey500,
+                  color: isSelected ? AppColors.primary : AppColors.grey500,
                 ),
                 title: Text(reason.label, style: const TextStyle(fontWeight: FontWeight.w600)),
                 onTap: () {
@@ -125,7 +125,7 @@ class InventoryItemRow extends StatelessWidget {
                     Text(
                       '${item.soldToday} sold today',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: item.soldToday > 0 ? AppColors.primaryOrange : AppColors.grey500,
+                        color: item.soldToday > 0 ? AppColors.primary : AppColors.grey500,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -140,7 +140,7 @@ class InventoryItemRow extends StatelessWidget {
                   IconButton.filledTonal(
                     style: IconButton.styleFrom(
                       backgroundColor: canDecrement ? AppColors.grey100 : AppColors.grey50,
-                      foregroundColor: canDecrement ? AppColors.brandBrown : AppColors.grey400,
+                      foregroundColor: canDecrement ? AppColors.ink : AppColors.grey400,
                       minimumSize: const Size(44, 44),
                     ),
                     icon: const Icon(Icons.remove, size: 20),
@@ -153,15 +153,15 @@ class InventoryItemRow extends StatelessWidget {
                       '${item.currentStock}',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: AppColors.brandBrown,
+                        color: AppColors.ink,
                       ),
                     ),
                   ),
                   // Plus button (min 44px)
                   IconButton.filledTonal(
                     style: IconButton.styleFrom(
-                      backgroundColor: canIncrement ? AppColors.primaryOrange.withValues(alpha: 0.12) : AppColors.grey50,
-                      foregroundColor: canIncrement ? AppColors.primaryOrange : AppColors.grey400,
+                      backgroundColor: canIncrement ? AppColors.primary.withValues(alpha: 0.12) : AppColors.grey50,
+                      foregroundColor: canIncrement ? AppColors.primary : AppColors.grey400,
                       minimumSize: const Size(44, 44),
                     ),
                     icon: const Icon(Icons.add, size: 20),

@@ -1,4 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:lottie/lottie.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/date_formatter.dart';
@@ -12,18 +17,43 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _scale;
-  late final Animation<double> _opacity;
+  // Same animation as the student app, on the vendor's teal disc (assets/splash, built by
+  // student_app/tool/splash): the disc pops, the burger builds itself, takes a bite, "Brunchy" rises in.
+  late final _ctrl = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+  late final _tags = CurvedAnimation(parent: _ctrl, curve: const Interval(0.6, 0.82, curve: Curves.easeOutCubic));
+  bool _done = false;
+  Timer? _fallback;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
-    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(_ctrl);
+    _ctrl.addStatusListener((st) {
+      if (st == AnimationStatus.completed) _finish(const Duration(milliseconds: 300));
+    });
+    // If the animation cannot load for any reason, never block the app.
+    _fallback = Timer(const Duration(seconds: 8), () => _finish(Duration.zero));
+  }
+
+  /// Starts the animation only once its first frame is on screen and the app has finished starting up,
+  /// so the opening (disc pop, burger build) is not played while nothing is being drawn yet.
+  Future<void> _play(Duration duration) async {
+    _ctrl.duration = duration;
+    await SchedulerBinding.instance.endOfFrame;
+    await SchedulerBinding.instance.endOfFrame;
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    if (!mounted) return;
+    _fallback?.cancel();
+    _fallback = Timer(duration + const Duration(seconds: 3), () => _finish(Duration.zero));
     _ctrl.forward();
-    Future.delayed(const Duration(milliseconds: 1500), _navigate);
+  }
+
+  void _finish(Duration hold) {
+    _fallback?.cancel();
+    Future.delayed(hold, () {
+      if (!mounted || _done) return;
+      _done = true;
+      _navigate();
+    });
   }
 
   Future<void> _navigate() async {
@@ -57,25 +87,65 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _fallback?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Widget _rise(Widget child) => AnimatedBuilder(
+        animation: _tags,
+        builder: (_, c) => Opacity(opacity: _tags.value, child: Transform.translate(offset: Offset(0, 14 * (1 - _tags.value)), child: c)),
+        child: child,
+      );
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final logo = (size.shortestSide * 0.9).clamp(240.0, 460.0);
     return Scaffold(
-      backgroundColor: AppColors.vendorTeal,
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _ctrl,
-          builder: (_, __) => Opacity(
-            opacity: _opacity.value,
-            child: Transform.scale(
-              scale: _scale.value,
-              child: Image.asset('assets/branding/brunchy_vendor_badge_transparent.png', width: 220),
+      backgroundColor: AppColors.background,
+      body: Stack(children: [
+        Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Lottie.asset(
+              'assets/splash/brunchy_vendor_splash.json',
+              controller: _ctrl,
+              width: logo,
+              height: logo,
+              onLoaded: (comp) => _play(comp.duration),
+              errorBuilder: (_, __, ___) {
+                _finish(const Duration(milliseconds: 600));
+                return const SizedBox.shrink();
+              },
             ),
-          ),
+            // "VENDOR" tag just under the disc (the canvas has empty space below the disc).
+            Transform.translate(
+              offset: Offset(0, -logo * 0.1),
+              child: _rise(Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(99)),
+                child: Text('VENDOR',
+                    style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 3, color: Colors.white)),
+              )),
+            ),
+          ]),
         ),
-      ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: MediaQuery.of(context).padding.bottom + 28,
+          child: _rise(Text.rich(
+            TextSpan(children: [
+              TextSpan(text: 'A product of ', style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
+              TextSpan(
+                  text: 'ANCILIENT',
+                  style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 2.4, color: AppColors.ink)),
+            ]),
+            textAlign: TextAlign.center,
+          )),
+        ),
+      ]),
     );
   }
 }
-

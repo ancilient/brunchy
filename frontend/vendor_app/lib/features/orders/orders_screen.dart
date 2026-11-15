@@ -29,7 +29,7 @@ class OrdersScreen extends StatelessWidget {
       builder: (context, state) {
         if (state is OrdersInitial || state is OrdersLoading) {
           return const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryOrange));
+              child: CircularProgressIndicator(color: AppColors.primary));
         }
         if (state is OrdersError) {
           return _ErrorState(
@@ -147,14 +147,14 @@ class _CapacityGateBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.speed, size: 20, color: AppColors.primaryOrange),
+              const Icon(Icons.speed, size: 20, color: AppColors.primary),
               const SizedBox(width: 6),
               Text(
                 'Max Concurrent Orders: ${loaded.maxCapacity}',
                 style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    color: AppColors.brandBrown),
+                    color: AppColors.ink),
               ),
               const Spacer(),
             ],
@@ -165,10 +165,10 @@ class _CapacityGateBar extends StatelessWidget {
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
               activeTrackColor: loaded.maxCapacity == 0
                   ? AppColors.errorRed
-                  : AppColors.primaryOrange,
+                  : AppColors.primary,
               thumbColor: loaded.maxCapacity == 0
                   ? AppColors.errorRed
-                  : AppColors.primaryOrange,
+                  : AppColors.primary,
             ),
             child: Slider(
               value: loaded.maxCapacity.toDouble(),
@@ -201,8 +201,8 @@ class _OverloadBanner extends StatelessWidget {
         fg = AppColors.warningAmber;
         icon = Icons.hourglass_bottom;
       case 2:
-        bg = AppColors.secondaryOrange.withValues(alpha: 0.15);
-        fg = AppColors.secondaryOrange;
+        bg = AppColors.attention.withValues(alpha: 0.15);
+        fg = AppColors.attention;
         icon = Icons.warning_amber_rounded;
       case 3:
       default:
@@ -253,7 +253,7 @@ class _MakeListBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: AppColors.brandBrown,
+      color: AppColors.ink,
       padding:
           const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
       child: SingleChildScrollView(
@@ -261,12 +261,12 @@ class _MakeListBar extends StatelessWidget {
         child: Row(
           children: [
             const Icon(Icons.soup_kitchen,
-                color: AppColors.accentYellow, size: 18),
+                color: AppColors.accent, size: 18),
             const SizedBox(width: 6),
             const Text(
               'MAKE NOW:',
               style: TextStyle(
-                  color: AppColors.accentYellow,
+                  color: AppColors.accent,
                   fontWeight: FontWeight.bold,
                   fontSize: 13),
             ),
@@ -318,13 +318,13 @@ class _BatchActionBar extends StatelessWidget {
             style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
-                color: AppColors.brandBrown),
+                color: AppColors.ink),
           ),
           const Spacer(),
           if (loaded.activeFilter == OrderFilter.newOrders)
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
+                backgroundColor: AppColors.primary,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 minimumSize: const Size(0, 36),
@@ -415,7 +415,7 @@ class _FilterTabs extends StatelessWidget {
                 border: Border(
                     bottom: BorderSide(
                         color: active
-                            ? AppColors.primaryOrange
+                            ? AppColors.primary
                             : Colors.transparent,
                         width: 2.5)),
               ),
@@ -424,7 +424,7 @@ class _FilterTabs extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: active
-                      ? AppColors.primaryOrange
+                      ? AppColors.primary
                       : AppColors.textSecondary,
                   fontWeight: active ? FontWeight.bold : FontWeight.w500,
                   fontSize: 13,
@@ -529,7 +529,7 @@ class _OrderCardState extends State<_OrderCard> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.primaryOrange,
+                color: AppColors.primary,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -550,7 +550,7 @@ class _OrderCardState extends State<_OrderCard> {
                     order.studentFirstName,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.brandBrown,
+                          color: AppColors.ink,
                         ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -571,7 +571,7 @@ class _OrderCardState extends State<_OrderCard> {
                 Text(
                   CurrencyFormatter.format(order.totalAmount),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.primaryOrange,
+                        color: AppColors.primary,
                         fontWeight: FontWeight.bold,
                       ),
                 ),
@@ -601,13 +601,13 @@ class _OrderCardState extends State<_OrderCard> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.secondaryOrange.withValues(alpha: 0.12),
+                color: AppColors.attention.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 'Queue #${widget.queuePosition} • Est. wait ~${(widget.queuePosition! * 2)} min',
                 style: const TextStyle(
-                  color: AppColors.secondaryOrange,
+                  color: AppColors.attention,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -632,7 +632,7 @@ class _OrderCardState extends State<_OrderCard> {
             if (isLoading)
               const Center(
                   child:
-                      CircularProgressIndicator(color: AppColors.primaryOrange))
+                      CircularProgressIndicator(color: AppColors.primary))
             else
               Row(children: [
                 const Expanded(
@@ -659,7 +659,7 @@ class _OrderCardState extends State<_OrderCard> {
             if (isLoading)
               const Center(
                   child:
-                      CircularProgressIndicator(color: AppColors.primaryOrange))
+                      CircularProgressIndicator(color: AppColors.primary))
             else
               SizedBox(
                 width: double.infinity,
@@ -674,13 +674,13 @@ class _OrderCardState extends State<_OrderCard> {
             const SizedBox(height: AppSpacing.xs),
             Row(children: [
               const Icon(Icons.check_circle,
-                  color: AppColors.vendorTeal, size: 16),
+                  color: AppColors.brandTeal, size: 16),
               const SizedBox(width: AppSpacing.xs),
               Text('Ready • Waiting for student',
                   style: Theme.of(context)
                       .textTheme
                       .bodyMedium
-                      ?.copyWith(color: AppColors.vendorTeal)),
+                      ?.copyWith(color: AppColors.brandTeal)),
             ]),
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
@@ -841,7 +841,7 @@ class _TimerBar extends StatelessWidget {
       const SizedBox(height: AppSpacing.xs),
       LinearProgressIndicator(
         value: frac,
-        color: isUrgent ? AppColors.errorRed : AppColors.primaryOrange,
+        color: isUrgent ? AppColors.errorRed : AppColors.primary,
         backgroundColor: AppColors.grey200,
       ),
     ]);

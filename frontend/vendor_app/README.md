@@ -19,6 +19,10 @@ A production-ready Flutter app designed for food stall vendors in college campus
 
 ### Run it against your local backend (default)
 The app talks to the Brunchy backend ([`backend/`](../../backend), contract in [`docs/api/openapi.yaml`](../../docs/api/openapi.yaml)).
+
+**Windows shortcut:** with the backend running and the phone plugged in, run `run.bat`. It sets up the port
+forward below, warns if the backend is not answering, then starts `flutter run` (hot reload works).
+
 1. Start the backend: `docker compose up -d` in the repo root, then `npm run dev` in `backend/`.
 2. Phone on USB with USB debugging: `adb reverse tcp:4000 tcp:4000`
 3. Run the app:

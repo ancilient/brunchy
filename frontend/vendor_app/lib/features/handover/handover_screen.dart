@@ -224,7 +224,7 @@ class _HandoverScreenState extends State<HandoverScreen> {
                           style:
                               Theme.of(context).textTheme.titleLarge?.copyWith(
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.brandBrown,
+                                    color: AppColors.ink,
                                   ),
                           textAlign: TextAlign.center,
                         ),
@@ -249,7 +249,7 @@ class _HandoverScreenState extends State<HandoverScreen> {
                               EdgeInsets.symmetric(vertical: AppSpacing.sm),
                           child: Center(
                               child: CircularProgressIndicator(
-                                  color: AppColors.primaryOrange)),
+                                  color: AppColors.primary)),
                         )
                       else if (_bannerState != HandoverBannerState.idle)
                         _buildStatusBanner(),
@@ -295,9 +295,9 @@ class _HandoverScreenState extends State<HandoverScreen> {
             borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
             border: Border.all(
               color: isCurrent
-                  ? AppColors.primaryOrange
+                  ? AppColors.primary
                   : (char.isNotEmpty
-                      ? AppColors.brandBrown
+                      ? AppColors.ink
                       : AppColors.grey300),
               width: isCurrent ? 2.5 : 1.5,
             ),
@@ -315,7 +315,7 @@ class _HandoverScreenState extends State<HandoverScreen> {
               style: const TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
-                color: AppColors.brandBrown,
+                color: AppColors.ink,
               ),
             ),
           ),
@@ -395,7 +395,7 @@ class _HandoverScreenState extends State<HandoverScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryOrange,
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -414,7 +414,7 @@ class _HandoverScreenState extends State<HandoverScreen> {
                     order.studentFirstName,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.brandBrown,
+                          color: AppColors.ink,
                         ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -448,7 +448,7 @@ class _HandoverScreenState extends State<HandoverScreen> {
                         '${item.quantity}×',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryOrange,
+                          color: AppColors.primary,
                           fontSize: 14,
                         ),
                       ),
@@ -459,7 +459,7 @@ class _HandoverScreenState extends State<HandoverScreen> {
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: AppColors.brandBrown,
+                            color: AppColors.ink,
                           ),
                         ),
                       ),
@@ -487,7 +487,7 @@ class _HandoverScreenState extends State<HandoverScreen> {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryOrange,
+                    color: AppColors.primary,
                   ),
                 ),
               ],
@@ -582,8 +582,8 @@ class _HandoverScreenState extends State<HandoverScreen> {
                                 color: key == 'C'
                                     ? AppColors.errorRed
                                     : (key == '⌫'
-                                        ? AppColors.brandBrown
-                                        : AppColors.brandBrown),
+                                        ? AppColors.ink
+                                        : AppColors.ink),
                               ),
                             ),
                           ),

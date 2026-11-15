@@ -10,6 +10,7 @@ import '../../services/audio_service.dart';
 import '../../services/local_storage_service.dart';
 import '../../services/tts_service.dart';
 import '../auth/auth_cubit.dart';
+import '../../core/widgets/brand_logo.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -43,8 +44,8 @@ class SettingsScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.15),
-                    child: const Icon(Icons.person, color: AppColors.primaryOrange, size: 32),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                    child: const Icon(Icons.person, color: AppColors.primary, size: 32),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -64,12 +65,12 @@ class SettingsScreen extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: AppColors.vendorTeal.withValues(alpha: 0.12),
+                            color: AppColors.brandTeal.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             'Active Stall: $stallId',
-                            style: const TextStyle(fontSize: 11, color: AppColors.vendorTeal, fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontSize: 11, color: AppColors.brandTeal, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -91,7 +92,7 @@ class SettingsScreen extends StatelessWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.storefront_outlined, color: AppColors.brandBrown),
+                  leading: const Icon(Icons.storefront_outlined, color: AppColors.ink),
                   title: const Text('Change Active Stall'),
                   subtitle: const Text('Select a different counter or stall for today'),
                   trailing: const Icon(Icons.chevron_right),
@@ -101,10 +102,10 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.volume_up_outlined, color: AppColors.primaryOrange),
+                  leading: const Icon(Icons.volume_up_outlined, color: AppColors.primary),
                   title: const Text('Test Order Alert & Voice'),
                   subtitle: const Text('Plays chime & voice alert for hands-free kitchen notice'),
-                  trailing: const Icon(Icons.play_circle_outline, color: AppColors.primaryOrange),
+                  trailing: const Icon(Icons.play_circle_outline, color: AppColors.primary),
                   onTap: () async {
                     await sl<AudioService>().playNewOrder();
                     await sl<TtsService>().announceNewOrders(1);
@@ -120,7 +121,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.location_city_outlined, color: AppColors.brandBrown),
+                  leading: const Icon(Icons.location_city_outlined, color: AppColors.ink),
                   title: const Text('Switch Canteen Location'),
                   subtitle: Text('Current: ${vendor?.canteenId ?? "canteen_001"}'),
                   trailing: const Icon(Icons.swap_horiz),
@@ -155,7 +156,7 @@ class SettingsScreen extends StatelessWidget {
           Center(
             child: Column(
               children: [
-                Image.asset('assets/images/logo_horizontal.png', height: 28),
+                const BrandLockup(height: 32),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Brunchy Vendor • v1.0.0+1',

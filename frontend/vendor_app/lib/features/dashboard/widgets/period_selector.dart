@@ -34,14 +34,14 @@ class PeriodSelector extends StatelessWidget {
                       period.label,
                       style: TextStyle(
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                        color: isSelected ? AppColors.white : AppColors.brandBrown,
+                        color: isSelected ? AppColors.white : AppColors.ink,
                         fontSize: 13,
                       ),
                     ),
                   ),
                 ),
                 selected: isSelected,
-                selectedColor: AppColors.primaryOrange,
+                selectedColor: AppColors.primary,
                 backgroundColor: AppColors.grey100,
                 showCheckmark: false,
                 onSelected: (val) {

@@ -28,7 +28,7 @@ class PeakHoursBar extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.access_time_filled, size: 20, color: AppColors.primaryOrange),
+                  const Icon(Icons.access_time_filled, size: 20, color: AppColors.primary),
                   const SizedBox(width: AppSpacing.xs),
                   Text(
                     'Peak Rush Hours (Today)',
@@ -78,7 +78,7 @@ class PeakHoursBar extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.access_time_filled, size: 20, color: AppColors.primaryOrange),
+                const Icon(Icons.access_time_filled, size: 20, color: AppColors.primary),
                 const SizedBox(width: AppSpacing.xs),
                 Text(
                   'Peak Rush Hours (Today)',
@@ -109,8 +109,8 @@ class PeakHoursBar extends StatelessWidget {
                     boxColor = AppColors.grey100;
                   } else {
                     boxColor = Color.lerp(
-                      AppColors.primaryOrange.withValues(alpha: 0.2),
-                      AppColors.primaryOrange,
+                      AppColors.primary.withValues(alpha: 0.2),
+                      AppColors.primary,
                       ratio,
                     )!;
                   }
@@ -134,7 +134,7 @@ class PeakHoursBar extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.bold,
-                                    color: ratio > 0.5 ? AppColors.white : AppColors.brandBrown,
+                                    color: ratio > 0.5 ? AppColors.white : AppColors.ink,
                                   ),
                                 )
                               : null,

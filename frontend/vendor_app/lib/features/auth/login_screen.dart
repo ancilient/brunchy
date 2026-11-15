@@ -11,6 +11,7 @@ import '../../core/constants/app_strings.dart';
 import '../../core/utils/validators.dart';
 import 'auth_cubit.dart';
 import 'auth_state.dart';
+import '../../core/widgets/brand_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -62,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: AppSpacing.lg),
-                  Center(child: Image.asset('assets/images/logo_horizontal.png', height: 54)),
+                  const Center(child: BrandLogo(size: 96)),
                   const SizedBox(height: AppSpacing.lg),
                   Text('Welcome!', style: Theme.of(context).textTheme.displayLarge),
                   const SizedBox(height: AppSpacing.xs),

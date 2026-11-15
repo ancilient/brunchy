@@ -115,7 +115,7 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
   void _simulatePhotoSelection() {
     // Simulates choosing a photo (compressed to WebP < 150KB)
     setState(() {
-      _selectedPhotoPath = 'assets/images/logo_mascot.png';
+      _selectedPhotoPath = 'assets/brand/burger.png';
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Photo selected & compressed to WebP (84 KB)')),
@@ -173,7 +173,9 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
                       child: _selectedPhotoPath != null
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                              child: Image.asset(_selectedPhotoPath!, fit: BoxFit.cover),
+                              child: Image.asset(_selectedPhotoPath!, fit: BoxFit.cover,
+                                  // items saved with the old mascot image still show something
+                                  errorBuilder: (_, __, ___) => Image.asset('assets/brand/burger.png', fit: BoxFit.contain)),
                             )
                           : const Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -324,11 +326,11 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
                   return ActionChip(
                     label: Text(cat),
                     backgroundColor: _categoryController.text == cat
-                        ? AppColors.primaryOrange.withValues(alpha: 0.15)
+                        ? AppColors.primary.withValues(alpha: 0.15)
                         : AppColors.grey100,
                     labelStyle: TextStyle(
                       color: _categoryController.text == cat
-                          ? AppColors.primaryOrange
+                          ? AppColors.primary
                           : AppColors.grey700,
                       fontSize: 12,
                     ),
@@ -351,7 +353,7 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
                   style: theme.textTheme.bodySmall,
                 ),
                 value: _isAvailable,
-                activeColor: AppColors.vendorTeal,
+                activeColor: AppColors.brandTeal,
                 onChanged: (val) => setState(() => _isAvailable = val),
               ),
               const SizedBox(height: AppSpacing.lg),

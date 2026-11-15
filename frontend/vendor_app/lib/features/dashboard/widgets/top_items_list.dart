@@ -23,7 +23,7 @@ class TopItemsList extends StatelessWidget {
           context: context,
           title: 'Top-Selling Items',
           icon: Icons.trending_up,
-          iconColor: AppColors.vendorTeal,
+          iconColor: AppColors.brandTeal,
           items: topItems,
           emptyMessage: 'No sales data yet.',
           isTop: true,
@@ -97,7 +97,7 @@ class TopItemsList extends StatelessWidget {
                         height: 24,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: isTop ? AppColors.primaryOrange.withValues(alpha: 0.12) : AppColors.grey200,
+                          color: isTop ? AppColors.primary.withValues(alpha: 0.12) : AppColors.grey200,
                           shape: BoxShape.circle,
                         ),
                         child: Text(
@@ -105,7 +105,7 @@ class TopItemsList extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: isTop ? AppColors.primaryOrange : AppColors.grey700,
+                            color: isTop ? AppColors.primary : AppColors.grey700,
                           ),
                         ),
                       ),
@@ -138,7 +138,7 @@ class TopItemsList extends StatelessWidget {
                           CurrencyFormatter.format(item.revenue),
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: AppColors.brandBrown,
+                            color: AppColors.ink,
                           ),
                         ),
                       ),

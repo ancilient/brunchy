@@ -115,7 +115,7 @@ class DashboardScreen extends StatelessWidget {
       final stats = state.stats;
 
       return RefreshIndicator(
-        color: AppColors.primaryOrange,
+        color: AppColors.primary,
         onRefresh: () => context.read<DashboardCubit>().loadDashboard(
               stallId: stallId,
               period: period,
@@ -220,7 +220,7 @@ class DashboardScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     const Icon(Icons.timer_outlined,
-                        color: AppColors.primaryOrange),
+                        color: AppColors.primary),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
@@ -232,7 +232,7 @@ class DashboardScreen extends StatelessWidget {
                       '${stats.avgPrepMinutes.toStringAsFixed(1)} min',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: AppColors.brandBrown,
+                            color: AppColors.ink,
                           ),
                     ),
                   ],

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#00D6CC</color>
+    <color name="ic_launcher_background">#14C4AE</color>
+    <!-- launch screen: same mint as the Flutter splash (AppColors.background), so there is no white flash -->
+    <color name="brunchy_mint">#F1FAF8</color>
 </resources>

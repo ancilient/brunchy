@@ -97,7 +97,7 @@ class SalesChart extends StatelessWidget {
                   maxY: maxY,
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
-                      getTooltipColor: (_) => AppColors.brandBrown,
+                      getTooltipColor: (_) => AppColors.ink,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
                         final point = chartData[group.x.toInt()];
                         final valStr = isRevenue
@@ -198,7 +198,7 @@ class SalesChart extends StatelessWidget {
                       barRods: [
                         BarChartRodData(
                           toY: val,
-                          color: AppColors.primaryOrange,
+                          color: AppColors.primary,
                           width: chartData.length > 15 ? 7 : 14,
                           borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(4)),

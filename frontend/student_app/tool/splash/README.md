@@ -10,6 +10,8 @@ python build.py                        # writes ../../assets/splash/brunchy_spla
 python preview.py                      # contact sheet + accuracy diff in your temp folder (needs Chrome)
 ```
 
+The vendor app's teal version: `BRUNCHY_DISC_COLOUR=#14C4AE BRUNCHY_SPLASH_OUT=../../../vendor_app/assets/splash/brunchy_vendor_splash.json python build.py`, then `python vendor_assets.py` (logo, burger and launcher icon images for the vendor app).
+
 The logo path defaults to `D:/Brunchy/app icon/original/brunchy-logo-round.jpeg`; set `BRUNCHY_LOGO` to use another.
 
 | File | What it does |
@@ -17,6 +19,7 @@ The logo path defaults to `D:/Brunchy/app icon/original/brunchy-logo-round.jpeg`
 | `parts.py` | Splits the logo into parts by its flat colours and finds the disc (buns, patty, seeds, letters) |
 | `tracer.py` | Connected components, pixel-edge contour tracing, smoothing, Douglas-Peucker simplification |
 | `build.py` | Rebuilds the uneaten bun (mirrors only the bitten corner), fits the two bite circles, writes the keyframed Lottie |
+| `vendor_assets.py` | Renders the vendor app's teal logo, burger and launcher-icon images from the teal Lottie |
 | `preview.py` | Renders frames through python-lottie's SVG export and headless Chrome |
 
 Timeline: disc pops (0–0.4 s) → burger builds itself (0.2–0.8 s) → seeds pop (0.9–1.15 s) →

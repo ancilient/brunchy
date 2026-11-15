@@ -14,7 +14,8 @@ import numpy as np
 from tracer import contours, rdp_closed, smooth_closed, area, fill_holes_smaller_than
 from parts import part_masks, full, colour_of, H, W as IMG_W, UP, m
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'splash', 'brunchy_splash.json')
+OUT = os.environ.get('BRUNCHY_SPLASH_OUT') or     os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'splash', 'brunchy_splash.json')
+DISC_COLOUR = os.environ.get('BRUNCHY_DISC_COLOUR')   # e.g. '#14C4AE' for the vendor app; default = the logo's yellow
 FPS, OP, W = 60, 180, 1080
 R = 380                                  # disc radius on the 1080 canvas
 
@@ -177,7 +178,7 @@ def pop(f0, dur=12, over=112):
 
 
 COL = {
-    'disc': colour_of(m('disc')), 'bun': colour_of(top), 'seed': colour_of(seeds_any),
+    'disc': DISC_COLOUR or colour_of(m('disc')), 'bun': colour_of(top), 'seed': colour_of(seeds_any),
     'patty': colour_of(full(P['patty'])), 'text': colour_of(full(P['letters'][0])),
 }
 print('colours', COL)

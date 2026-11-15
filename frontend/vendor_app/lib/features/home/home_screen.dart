@@ -16,6 +16,7 @@ import '../orders/orders_state.dart';
 import '../../data/models/dashboard_period.dart';
 import '../../services/realtime_connection_state.dart';
 import '../stall_control/stall_control_cubit.dart';
+import '../../core/widgets/brand_logo.dart';
 
 class HomeScreen extends StatefulWidget {
   final StatefulNavigationShell shell;
@@ -56,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (ctx) => IconButton(
             icon: Padding(
               padding: const EdgeInsets.all(4.0),
-              child: Image.asset('assets/images/logo_mascot.png'),
+              child: const BrandLogo(size: 32, shadow: false),
             ),
             tooltip: 'Open Menu',
             onPressed: () => Scaffold.of(ctx).openDrawer(),
@@ -70,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
               stallName,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: AppColors.brandBrown,
+                color: AppColors.ink,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -126,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   initialLocation: index == widget.shell.currentIndex);
             },
             type: BottomNavigationBarType.fixed,
-            selectedItemColor: AppColors.primaryOrange,
+            selectedItemColor: AppColors.primary,
             unselectedItemColor: AppColors.grey500,
             items: [
               BottomNavigationBarItem(
@@ -180,10 +181,10 @@ class _HomeScreenState extends State<HomeScreen> {
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           DrawerHeader(
-            decoration: const BoxDecoration(color: AppColors.vendorTeal),
+            decoration: const BoxDecoration(color: AppColors.brandTeal),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Image.asset('assets/branding/brunchy_vendor_badge_transparent.png', height: 50),
+              const BrandLogo(size: 56, shadow: false),
               const SizedBox(height: AppSpacing.sm),
               Text(vendor?.name ?? 'Vendor Partner',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
