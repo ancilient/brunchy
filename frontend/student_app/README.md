@@ -51,4 +51,4 @@ lib/ui/                       colours, fonts and icons
 ## Not connected yet
 - **Payment** uses the backend's mock gateway (no money moves). Razorpay comes in a later milestone.
 - **Push notifications** (FCM) and the **SMS** for the OTP come later; live updates work while the app is open.
-- Login tokens are kept in shared_preferences; move them to `flutter_secure_storage` before the Play Store release.
+- Login tokens are kept in shared_preferences; move them to `flutter_secure_storage` before the Play Store release
