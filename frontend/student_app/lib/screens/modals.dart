@@ -1,5 +1,6 @@
 // PayModal.tsx, CheckoutShortageModal.tsx, CanteenSelectorModal.tsx, CustomerCareModal.tsx
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../state/app_scope.dart';
 import '../state/app_state.dart';
@@ -87,10 +88,11 @@ class PaySheetState extends State<PaySheet> {
     final order = s.activePendingOrder;
     if (order == null) return const SizedBox.shrink();
     const apps = [
-      ['Google Pay', '⚡', 0xFFEFF6FF, 0xFFBFDBFE],
-      ['PhonePe', '🟣', 0xFFFAF5FF, 0xFFE9D5FF],
-      ['Paytm', '🔷', 0xFFF0F9FF, 0xFFBAE6FD],
-      ['BHIM UPI', '🇮🇳', 0xFFECFDF5, 0xFFA7F3D0],
+      // Official marks from Wikimedia Commons (assets/payment). The names are what _pay() sends as the UPI app.
+      ['Google Pay', 'assets/payment/gpay.png', 0xFFEFF6FF, 0xFFBFDBFE],
+      ['PhonePe', 'assets/payment/phonepe.png', 0xFFFAF5FF, 0xFFE9D5FF],
+      ['Paytm', 'assets/payment/paytm.png', 0xFFF0F9FF, 0xFFBAE6FD],
+      ['BHIM UPI', 'assets/payment/bhim.png', 0xFFECFDF5, 0xFFA7F3D0],
     ];
     return Backdrop(
       bottomSheet: true,
@@ -197,7 +199,13 @@ class PaySheetState extends State<PaySheet> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: Color(a[2] as int), borderRadius: BorderRadius.circular(16), border: Border.all(color: Color(a[3] as int))),
           child: Row(children: [
-            Text(a[1] as String, style: const TextStyle(fontSize: 20)),
+            Container(
+              width: 36, height: 36,
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10),
+                  boxShadow: [BoxShadow(color: C.a(Colors.black, 0.06), blurRadius: 4, offset: const Offset(0, 1))]),
+              child: Image.asset(a[1] as String, fit: BoxFit.contain, filterQuality: FilterQuality.medium),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -434,6 +442,96 @@ class _SpinState extends State<_Spin> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) => RotationTransition(turns: _c, child: widget.child);
 }
 
+
+/// Compact floating sheet: slides up from the bottom, sits above the screen edges (like the dock),
+/// and slides away when closed or tapped outside. [builder] gets the animated close for its own buttons.
+class SheetShell extends StatefulWidget {
+  const SheetShell({super.key, required this.onClose, required this.builder});
+  final VoidCallback onClose;
+  final Widget Function(VoidCallback close) builder;
+  @override
+  State<SheetShell> createState() => _SheetShellState();
+}
+
+class _SheetShellState extends State<SheetShell> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 320))..forward();
+
+  Future<void> _close() async {
+    await _c.reverse();
+    if (mounted) widget.onClose();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final slide = CurvedAnimation(parent: _c, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    return Stack(children: [
+      Positioned.fill(
+        child: GestureDetector(onTap: _close, child: FadeTransition(opacity: _c, child: Container(color: C.a(Colors.black, 0.45)))),
+      ),
+      Align(
+        alignment: Alignment.bottomCenter,
+        child: SlideTransition(
+          position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(slide),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                margin: EdgeInsets.fromLTRB(12, 0, 12, 12 + MediaQuery.of(context).padding.bottom),
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [BoxShadow(color: C.a(Colors.black, 0.18), blurRadius: 30, offset: const Offset(0, 12))],
+                ),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Center(
+                    child: Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 14),
+                        decoration: BoxDecoration(color: C.slate200, borderRadius: BorderRadius.circular(99))),
+                  ),
+                  widget.builder(_close),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+/// Icon tile + title + subtitle + small close button, shared by the help and policy sheets.
+Widget _sheetHeader(String icon, Color color, String title, String subtitle, VoidCallback close) => Row(children: [
+      Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(color: C.a(color, 0.12), borderRadius: BorderRadius.circular(14)),
+        alignment: Alignment.center,
+        child: LIcon(icon, size: 20, color: color),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          txt(title, 15, w: w7, font: F.display, maxLines: 1),
+          txt(subtitle, 11, color: C.slate500, maxLines: 1),
+        ]),
+      ),
+      Tap(
+        onTap: close,
+        child: Container(
+          width: 30, height: 30,
+          decoration: const BoxDecoration(color: C.slate100, shape: BoxShape.circle),
+          alignment: Alignment.center,
+          child: const LIcon('X', size: 14, color: C.slate500),
+        ),
+      ),
+    ]);
+
 // ======================= Customer care =======================
 class CustomerCareModal extends StatefulWidget {
   const CustomerCareModal({super.key, required this.onClose});
@@ -443,8 +541,17 @@ class CustomerCareModal extends StatefulWidget {
 }
 
 class _CustomerCareModalState extends State<CustomerCareModal> {
+  static const _desks = [('Main Canteen', '+91 98450 00111'), ('Advance Block', '+91 98450 00222')];
+
   bool _submitted = false;
+  int? _copied; // which desk number was just copied
   final _issue = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _issue.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -452,106 +559,268 @@ class _CustomerCareModalState extends State<CustomerCareModal> {
     super.dispose();
   }
 
+  void _copy(int i) {
+    Clipboard.setData(ClipboardData(text: _desks[i].$2.replaceAll(' ', '')));
+    setState(() => _copied = i);
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted && _copied == i) setState(() => _copied = null);
+    });
+  }
+
+  Widget _desk(int i) {
+    final copied = _copied == i;
+    return Expanded(
+      child: Tap(
+        onTap: () => _copy(i),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          decoration: BoxDecoration(
+            color: copied ? C.emerald50 : C.cream,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: copied ? C.emerald200 : C.a(C.amber200, 0.8)),
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                txt(copied ? 'Copied!' : _desks[i].$1, 10, w: w6, color: copied ? C.emerald700 : C.slate500),
+                const SizedBox(height: 2),
+                FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: txt(_desks[i].$2, 12, w: w7, font: F.mono, color: C.slate800)),
+              ]),
+            ),
+            LIcon(copied ? 'Check' : 'Copy', size: 14, color: copied ? C.emerald600 : C.slate400),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _form() {
+    final canSend = _issue.text.trim().isNotEmpty;
+    return Column(key: const ValueKey('form'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      txt('CALL A DESK', 10, w: w7, color: C.slate400, spacing: 0.6),
+      const SizedBox(height: 8),
+      Row(children: [_desk(0), const SizedBox(width: 10), _desk(1)]),
+      const SizedBox(height: 16),
+      txt('OR MESSAGE US', 10, w: w7, color: C.slate400, spacing: 0.6),
+      const SizedBox(height: 8),
+      Container(
+        padding: const EdgeInsets.fromLTRB(14, 4, 5, 4),
+        decoration: BoxDecoration(color: C.slate50, borderRadius: BorderRadius.circular(22), border: Border.all(color: C.slate200)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(
+            child: TextField(
+              controller: _issue,
+              minLines: 1,
+              maxLines: 3,
+              style: ts(12, color: C.slate800),
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                hintText: 'UPI deducted but order delayed…',
+                hintStyle: ts(12, color: C.slate400),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Tap(
+            onTap: canSend
+                ? () {
+                    FocusScope.of(context).unfocus();
+                    setState(() => _submitted = true);
+                  }
+                : null,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 36, height: 36,
+              decoration: BoxDecoration(gradient: canSend ? C.brandGradient : null, color: canSend ? null : C.slate200, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: LIcon('Send', size: 15, color: canSend ? Colors.white : C.slate400),
+            ),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const LIcon('ShieldCheck', size: 12, color: C.emerald600),
+        const SizedBox(width: 4),
+        Flexible(child: txt('Refunds are credited automatically to your UPI ID', 10, color: C.slate400)),
+      ]),
+    ]);
+  }
+
+  Widget _done(VoidCallback close) => Container(
+        key: const ValueKey('done'),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: C.emerald50, borderRadius: BorderRadius.circular(20), border: Border.all(color: C.emerald200)),
+        child: Row(children: [
+          Container(
+            width: 36, height: 36,
+            decoration: const BoxDecoration(color: C.emerald500, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: const LIcon('Check', size: 18, color: Colors.white, strokeWidth: 3),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              txt('Ticket #CC-8821 created', 13, w: w7, color: C.emerald800),
+              txt('The canteen manager has been notified. Expect a reply within 3 minutes.', 11, color: C.slate600),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Tap(
+            onTap: close,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(color: C.emerald600, borderRadius: BorderRadius.circular(99)),
+              child: txt('Done', 12, w: w7, color: Colors.white),
+            ),
+          ),
+        ]),
+      );
+
   @override
   Widget build(BuildContext context) {
-    return Backdrop(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 384),
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.slate100),
-                boxShadow: [BoxShadow(color: C.a(Colors.black, 0.25), blurRadius: 50, offset: const Offset(0, 25))]),
-            child: SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Container(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: C.slate100))),
-                  child: Row(children: [
-                    Container(width: 32, height: 32, decoration: BoxDecoration(color: C.orange100, borderRadius: BorderRadius.circular(12)),
-                        child: const Center(child: LIcon('Phone', size: 16, color: C.brand))),
-                    const SizedBox(width: 8),
-                    Expanded(child: txt('Brunchy Customer Care', 16, w: w7, font: F.display)),
-                    _closeBtn(widget.onClose, size: 32, icon: 16),
+    return SheetShell(
+      onClose: widget.onClose,
+      builder: (close) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _sheetHeader('HelpCircle', C.brand, 'Need help?', 'Campus help desk · replies in minutes', close),
+        const SizedBox(height: 16),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          child: AnimatedSwitcher(duration: const Duration(milliseconds: 220), child: _submitted ? _done(close) : _form()),
+        ),
+      ]),
+    );
+  }
+}
+
+// ======================= Policies =======================
+class _Policy {
+  const _Policy(this.tab, this.title, this.subtitle, this.icon, this.color, this.points);
+  final String tab, title, subtitle, icon;
+  final Color color;
+  final List<(String, String)> points; // (heading, text); heading may be empty
+}
+
+const _policies = {
+  'refund': _Policy('Refund', 'Refund & Cancellation', 'When and how you get money back', 'RefreshCw', C.emerald600, [
+    ('Full refund before cooking', "Cancel while a bill is 'Waiting for Acceptance' or 'Accepted' and 100% goes back to the UPI handle you paid from."),
+    ('Out-of-stock items', 'If one item runs out, it is refunded right away while the rest of the bill continues.'),
+    ('Stall emergencies', 'All unfulfilled orders are refunded automatically within 24 hours through the payment gateway.'),
+  ]),
+  'terms': _Policy('Terms', 'Terms of Service', 'Using Brunchy on campus', 'FileText', C.blue600, [
+    ('', 'Brunchy is the campus food ordering platform for real-time menus and queue-free counter pickup.'),
+    ('', 'Collect your food within the preparation window by saying your 3-digit pickup code at the counter.'),
+  ]),
+  'privacy': _Policy('Privacy', 'Privacy Policy', 'DPDP Act 2023 compliant', 'Shield', C.purple600, [
+    ('', 'We collect your name, mobile number and optional registration number only for pickup verification and SMS alerts.'),
+    ('', 'We never store GPS coordinates or payment credentials on our servers.'),
+  ]),
+};
+
+/// Refund, Terms and Privacy in one compact sheet, with a switcher to hop between them without closing.
+class PolicyModal extends StatefulWidget {
+  const PolicyModal({super.key, required this.kind, required this.onClose});
+  final String kind; // 'refund' | 'terms' | 'privacy'
+  final VoidCallback onClose;
+  @override
+  State<PolicyModal> createState() => _PolicyModalState();
+}
+
+class _PolicyModalState extends State<PolicyModal> {
+  late String _kind = _policies.containsKey(widget.kind) ? widget.kind : 'refund';
+
+  Widget _switcher() => Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: C.slate100, borderRadius: BorderRadius.circular(16)),
+        child: Row(children: [
+          for (final e in _policies.entries)
+            Expanded(
+              child: Tap(
+                onTap: () => setState(() => _kind = e.key),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  decoration: BoxDecoration(
+                    color: _kind == e.key ? Colors.white : C.a(Colors.white, 0),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: _kind == e.key ? [BoxShadow(color: C.a(Colors.black, 0.06), blurRadius: 6, offset: const Offset(0, 2))] : null,
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    LIcon(e.value.icon, size: 13, color: _kind == e.key ? e.value.color : C.slate400),
+                    const SizedBox(width: 5),
+                    txt(e.value.tab, 12, w: w7, color: _kind == e.key ? C.slate800 : C.slate500),
                   ]),
                 ),
-                if (_submitted)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Column(children: [
-                      Container(width: 48, height: 48, decoration: const BoxDecoration(color: C.emerald100, shape: BoxShape.circle),
-                          child: const Center(child: LIcon('Check', size: 24, color: C.emerald700, strokeWidth: 3))),
-                      const SizedBox(height: 12),
-                      txt('Ticket #CC-8821 Created', 16, w: w7),
-                      const SizedBox(height: 12),
-                      txt('Our campus canteen manager has been notified. We will resolve your query within 3 minutes!', 12, color: C.slate500, align: TextAlign.center),
-                      const SizedBox(height: 16),
-                      Tap(
-                        onTap: widget.onClose,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                          decoration: BoxDecoration(color: C.brand, borderRadius: BorderRadius.circular(12)),
-                          child: txt('Done', 12, w: w7, color: Colors.white),
-                        ),
-                      ),
-                    ]),
-                  )
-                else ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: C.orange50, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.a(C.orange200, 0.6))),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      txt('Emergency Canteen Helplines', 12, w: w7, color: C.brand),
-                      const SizedBox(height: 8),
-                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [txt('Main Canteen Desk:', 12, color: C.slate700), txt('+91 98450 00111', 12, w: w7, font: F.mono, color: C.slate700)]),
-                      const SizedBox(height: 8),
-                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [txt('Advance Block Desk:', 12, color: C.slate700), txt('+91 98450 00222', 12, w: w7, font: F.mono, color: C.slate700)]),
-                    ]),
-                  ),
-                  const SizedBox(height: 16),
-                  txt('Have an issue with your order or payment?', 12, w: w6, color: C.slate700),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _issue,
-                    minLines: 3,
-                    maxLines: 3,
-                    style: ts(12, color: C.slate800),
-                    decoration: InputDecoration(
-                      hintText: "e.g. UPI deducted but order delayed, or stall didn't have cheese...",
-                      hintStyle: ts(12, color: C.slate400),
-                      contentPadding: const EdgeInsets.all(12),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: C.slate200)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: C.brandLight, width: 2)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Tap(
-                    onTap: () {
-                      if (_issue.text.trim().isEmpty) return;
-                      FocusScope.of(context).unfocus();
-                      setState(() => _submitted = true);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(color: C.brand, borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: C.a(C.orange500, 0.2), blurRadius: 6, offset: const Offset(0, 4))]),
-                      child: Center(child: txt('Send Message to Help Desk', 12, w: w7, color: Colors.white)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const LIcon('ShieldCheck', size: 14, color: C.emerald600),
-                    const SizedBox(width: 4),
-                    Flexible(child: txt('Refund queries are automatically credited to your UPI ID', 10, color: C.slate400)),
+              ),
+            ),
+        ]),
+      );
+
+  Widget _points(_Policy p) => Column(key: ValueKey(_kind), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var i = 0; i < p.points.length; i++)
+          Padding(
+            padding: EdgeInsets.only(bottom: i == p.points.length - 1 ? 0 : 12),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 22, height: 22,
+                decoration: BoxDecoration(color: C.a(p.color, 0.12), shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: txt('${i + 1}', 11, w: w7, font: F.mono, color: p.color),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if (p.points[i].$1.isNotEmpty) ...[txt(p.points[i].$1, 12, w: w7, color: C.slate800), const SizedBox(height: 2)],
+                    txt(p.points[i].$2, 12, color: C.slate600, height: 1.45),
                   ]),
-                ],
-              ]),
+                ),
+              ),
+            ]),
+          ),
+      ]);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _policies[_kind]!;
+    return SheetShell(
+      onClose: widget.onClose,
+      builder: (close) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: KeyedSubtree(key: ValueKey(_kind), child: _sheetHeader(p.icon, p.color, p.title, p.subtitle, close)),
+        ),
+        const SizedBox(height: 14),
+        _switcher(),
+        const SizedBox(height: 16),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+          child: SingleChildScrollView(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: AnimatedSwitcher(duration: const Duration(milliseconds: 200), child: _points(p)),
             ),
           ),
         ),
-      ),
+        const SizedBox(height: 18),
+        Tap(
+          onTap: close,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(color: C.slate900, borderRadius: BorderRadius.circular(16)),
+            alignment: Alignment.center,
+            child: txt('Got it', 13, w: w7, color: Colors.white),
+          ),
+        ),
+      ]),
     );
   }
 }

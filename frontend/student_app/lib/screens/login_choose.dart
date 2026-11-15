@@ -1,4 +1,6 @@
 // LoginScreen.tsx and ChooseCanteenScreen.tsx
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -24,6 +26,183 @@ InputDecoration _input({String? hint, Widget? prefix, BorderRadius? radius}) {
     focusedBorder: OutlineInputBorder(borderRadius: r, borderSide: const BorderSide(color: C.brandLight, width: 2)),
     border: OutlineInputBorder(borderRadius: r, borderSide: const BorderSide(color: C.slate200)),
   );
+}
+
+/// Full-page "you're in" moment right after a successful login: a check pops in, a food quote, then it moves on
+/// by itself after 10 s (or straight away on "Let's eat"). Fades in over the app and fades away when done.
+class LoginSuccessScreen extends StatefulWidget {
+  const LoginSuccessScreen({super.key, required this.name, required this.onContinue});
+  final String name;
+  final VoidCallback onContinue;
+  @override
+  State<LoginSuccessScreen> createState() => _LoginSuccessScreenState();
+}
+
+class _LoginSuccessScreenState extends State<LoginSuccessScreen> with TickerProviderStateMixin {
+  static const _quotes = [
+    ('Order the foods and snacks you wish for', 'Skip the queue. Just say your code at the counter.'),
+    ('Hungry? Your canteen is one tap away', 'Fresh burgers, juices and hot meals, ready when you are.'),
+    ('Good food, zero waiting', 'Order now and pick it up on your break.'),
+    ('Craving something tasty?', "Browse today's menu and grab it while it's hot."),
+  ];
+  late final _intro = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..forward();
+  late final _countdown = AnimationController(vsync: this, duration: const Duration(seconds: 10))..forward();
+  late final _quote = _quotes[math.Random().nextInt(_quotes.length)];
+  bool _leaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // The OTP keyboard may still be up: close it so the page gets the whole screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) => FocusManager.instance.primaryFocus?.unfocus());
+    _countdown.addStatusListener((st) {
+      if (st == AnimationStatus.completed) _leave();
+    });
+  }
+
+  void _leave() {
+    if (_leaving) return;
+    _countdown.stop();
+    setState(() => _leaving = true);
+    Future.delayed(const Duration(milliseconds: 320), () { if (mounted) widget.onContinue(); });
+  }
+
+  @override
+  void dispose() {
+    _intro.dispose();
+    _countdown.dispose();
+    super.dispose();
+  }
+
+  /// A slice of the intro, so each element arrives a little after the previous one.
+  Animation<double> _step(double a, double b, [Curve curve = Curves.easeOutCubic]) =>
+      CurvedAnimation(parent: _intro, curve: Interval(a, b, curve: curve));
+
+  Widget _rise(Animation<double> a, Widget child) => AnimatedBuilder(
+        animation: a,
+        builder: (_, c) => Opacity(opacity: a.value.clamp(0.0, 1.0), child: Transform.translate(offset: Offset(0, 18 * (1 - a.value)), child: c)),
+        child: child,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final first = widget.name.trim().split(' ').first;
+    final pad = MediaQuery.of(context).padding;
+    return IgnorePointer(
+      ignoring: _leaving,
+      child: AnimatedOpacity(
+        opacity: _leaving ? 0 : 1,
+        duration: const Duration(milliseconds: 300),
+        child: Material(
+          color: C.cream,
+          child: LayoutBuilder(
+            builder: (context, box) => SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: box.maxHeight),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(28, pad.top + 32, 28, pad.bottom + 28),
+                  child: Column(children: [
+                    SizedBox(height: box.maxHeight * 0.12),
+                    ScaleTransition(
+                      scale: _step(0.0, 0.45, Curves.easeOutBack),
+                      child: Container(
+                        width: 92, height: 92,
+                        decoration: BoxDecoration(
+                          gradient: C.brandGradientDiag,
+                          shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(color: C.a(C.orange500, 0.3), blurRadius: 28, offset: const Offset(0, 12))],
+                        ),
+                        alignment: Alignment.center,
+                        child: const LIcon('Check', size: 44, color: Colors.white, strokeWidth: 3),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    _rise(_step(0.2, 0.6), txt(first.isEmpty ? 'Welcome!' : 'Welcome, $first!', 26, w: w8, font: F.display, align: TextAlign.center)),
+                    const SizedBox(height: 8),
+                    _rise(
+                      _step(0.3, 0.7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                        decoration: BoxDecoration(color: C.emerald50, borderRadius: BorderRadius.circular(99), border: Border.all(color: C.emerald200)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const LIcon('ShieldCheck', size: 13, color: C.emerald600),
+                          const SizedBox(width: 6),
+                          txt("You've logged in successfully", 12, w: w6, color: C.emerald700),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    _rise(
+                      _step(0.45, 0.9),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: C.a(C.amber200, 0.7)),
+                          boxShadow: [BoxShadow(color: C.a(const Color(0xFFD7BE96), 0.22), blurRadius: 18, offset: const Offset(0, 8))],
+                        ),
+                        child: Column(children: [
+                          Container(
+                            width: 36, height: 36,
+                            decoration: BoxDecoration(color: C.orange50, shape: BoxShape.circle, border: Border.all(color: C.orange200)),
+                            alignment: Alignment.center,
+                            child: const LIcon('Sparkles', size: 16, color: C.brand),
+                          ),
+                          const SizedBox(height: 12),
+                          txt(_quote.$1, 16, w: w7, font: F.display, align: TextAlign.center, color: C.slate800),
+                          const SizedBox(height: 6),
+                          txt(_quote.$2, 12, color: C.slate500, align: TextAlign.center, height: 1.45),
+                        ]),
+                      ),
+                    ),
+                    SizedBox(height: box.maxHeight * 0.1),
+                    _rise(
+                      _step(0.6, 1.0),
+                      Column(children: [
+                        GradientButton(
+                          onTap: _leave,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            txt("Let's eat", 14, w: w7, color: Colors.white),
+                            const SizedBox(width: 8),
+                            const LIcon('ArrowRight', size: 16, color: Colors.white),
+                          ]),
+                        ),
+                        const SizedBox(height: 16),
+                        // Countdown to moving on by itself.
+                        SizedBox(
+                          width: 96,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(99),
+                            child: AnimatedBuilder(
+                              animation: _countdown,
+                              builder: (_, __) => LinearProgressIndicator(
+                                value: _countdown.value,
+                                minHeight: 4,
+                                backgroundColor: C.a(C.amber200, 0.6),
+                                color: C.brand,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        AnimatedBuilder(
+                          animation: _countdown,
+                          builder: (_, __) => txt('Continuing in ${(10 - _countdown.value * 10).ceil()}s', 10, color: C.slate400),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class LoginScreen extends StatefulWidget {
@@ -116,7 +295,7 @@ class LoginScreenState extends State<LoginScreen> {
             padding: const EdgeInsets.all(24),
             decoration: card(border: C.amber100, shadow: [BoxShadow(color: C.a(const Color(0xFF451A03), 0.05), blurRadius: 25, offset: const Offset(0, 20))]),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Center(child: logoTile(64, 16, const LIcon('UtensilsCrossed', size: 32, color: Colors.white))),
+              Center(child: brandLogo(84)),
               const SizedBox(height: 12),
               txt('Welcome to Brunchy', 24, w: w8, font: F.display, align: TextAlign.center),
               const SizedBox(height: 4),
@@ -271,7 +450,7 @@ class ChooseCanteenScreen extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 384),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            logoTile(56, 16, const LIcon('UtensilsCrossed', size: 28, color: Colors.white)),
+            brandLogo(72),
             const SizedBox(height: 12),
             txt('Choose Your Canteen', 24, w: w8, font: F.display),
             const SizedBox(height: 4),

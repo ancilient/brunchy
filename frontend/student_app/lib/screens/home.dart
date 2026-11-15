@@ -61,7 +61,7 @@ class _StudentHomeState extends State<StudentHome> {
     }).toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 170), // clears the cart bar and the dock
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 416),
@@ -109,58 +109,52 @@ class _StudentHomeState extends State<StudentHome> {
             const SizedBox(height: 20),
             // Stall tabs
             if (_search.text.isEmpty) ...[
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(children: [
-                  _tabChip('All Items', _tab == 'all', () => setState(() => _tab = 'all'), bold: true),
-                  for (final st in stalls) _tabChip(st.name, _tab == st.id, () => setState(() => _tab = st.id)),
-                ]),
+              _CategoryPills(
+                labels: ['All Items', for (final st in stalls) st.name],
+                selected: _tab == 'all' ? 0 : stalls.indexWhere((st) => st.id == _tab) + 1,
+                onSelect: (i) => setState(() => _tab = i == 0 ? 'all' : stalls[i - 1].id),
               ),
               const SizedBox(height: 28),
             ],
-            // Food cards grouped by stall
-            for (final stall in stalls.where((st) => _tab == 'all' || st.id == _tab))
-              if (display.any((p) => p.stallId == stall.id))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            // Food cards grouped by stall; switching category cross-fades the list.
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(position: Tween(begin: const Offset(0, 0.015), end: Offset.zero).animate(anim), child: child),
+              ),
+              layoutBuilder: (current, previous) =>
+                  Stack(alignment: Alignment.topCenter, fit: StackFit.passthrough, children: [...previous, if (current != null) current]),
+              child: Column(key: ValueKey(_tab), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                for (final stall in stalls.where((st) => _tab == 'all' || st.id == _tab))
+                  if (display.any((p) => p.stallId == stall.id))
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Row(children: [
-                        dot(C.hex(stall.accentColor), 10),
-                        const SizedBox(width: 8),
-                        Expanded(child: txt(stall.name, 14, w: w7, font: F.display)),
-                        dot(C.emerald500, 6),
-                        const SizedBox(width: 4),
-                        txt('OPEN', 11, w: w6, color: C.emerald600),
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Row(children: [
+                            dot(C.hex(stall.accentColor), 10),
+                            const SizedBox(width: 8),
+                            Expanded(child: txt(stall.name, 14, w: w7, font: F.display)),
+                            dot(C.emerald500, 6),
+                            const SizedBox(width: 4),
+                            txt('OPEN', 11, w: w6, color: C.emerald600),
+                          ]),
+                        ),
+                        const SizedBox(height: 12),
+                        _grid([for (final p in display.where((p) => p.stallId == stall.id)) _productCard(context, s, p)]),
                       ]),
                     ),
-                    const SizedBox(height: 12),
-                    _grid([for (final p in display.where((p) => p.stallId == stall.id)) _productCard(context, s, p)]),
-                  ]),
-                ),
+              ]),
+            ),
           ]),
         ),
       ),
     );
   }
-
-  Widget _tabChip(String label, bool selected, VoidCallback onTap, {bool bold = false}) => Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Tap(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              gradient: selected ? C.brandGradient : null,
-              color: selected ? null : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: selected ? null : Border.all(color: C.a(C.amber200, 0.6)),
-            ),
-            child: txt(label, 12, w: bold || selected ? w7 : w6, color: selected ? Colors.white : C.slate700),
-          ),
-        ),
-      );
 
   /// 2-column grid with equal-height rows (grid-cols-2 gap-3.5)
   Widget _grid(List<Widget> cards) {
@@ -202,7 +196,8 @@ class _StudentHomeState extends State<StudentHome> {
                   BoxShadow(color: C.a(Colors.white, 0.9), blurRadius: 16, offset: const Offset(-6, -6)),
                 ],
         ),
-        child: Column(children: [
+        child: Stack(fit: StackFit.expand, clipBehavior: Clip.none, children: [
+          Column(children: [
           Container(
             width: 64, height: 64,
             decoration: BoxDecoration(color: C.cream, shape: BoxShape.circle, border: Border.all(color: C.amber100)),
@@ -220,15 +215,15 @@ class _StudentHomeState extends State<StudentHome> {
             _stockTag('ONLY ${p.stock} LEFT', C.amber100, C.amber900, C.amber600)
           else
             _stockTag('IN STOCK', C.emerald50, C.emerald800, C.emerald500),
-          const Spacer(),
-          const SizedBox(height: 12),
+          // At least 12 px, but able to give up a pixel when IntrinsicHeight measures the text slightly short.
+          const Expanded(child: SizedBox(height: 12)),
           if (line != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(color: C.cream, borderRadius: BorderRadius.circular(99), border: Border.all(color: C.amber200)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 _round(const LIcon('Minus', size: 12, color: C.slate700), Colors.white, () => s.updateCartQuantity(p.id, -1)),
-                SizedBox(width: 30, child: txt('${line.quantity}', 12, w: w7, font: F.mono, align: TextAlign.center)),
+                SizedBox(width: 30, child: Center(child: RollingNumber(line.quantity, style: ts(12, w: w7, font: F.mono)))),
                 _round(const LIcon('Plus', size: 12, color: Colors.white), C.brand, () => s.updateCartQuantity(p.id, 1)),
               ]),
             )
@@ -252,6 +247,26 @@ class _StudentHomeState extends State<StudentHome> {
                 child: Center(child: LIcon('Plus', size: 20, strokeWidth: 2.5, color: soldOut ? C.slate400 : Colors.white)),
               ),
             ),
+          ]),
+          // Small remove button inside the card's top-right corner, shown while the item is in the cart.
+          Positioned(
+            top: -6,
+            right: -6,
+            child: AnimatedScale(
+              scale: line != null ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              curve: line != null ? Curves.easeOutBack : Curves.easeIn,
+              child: Tap(
+                onTap: line == null ? null : () => s.removeFromCart(p.id),
+                child: Container(
+                  width: 22, height: 22,
+                  decoration: BoxDecoration(color: C.slate100, shape: BoxShape.circle, border: Border.all(color: C.slate200)),
+                  alignment: Alignment.center,
+                  child: const LIcon('X', size: 11, color: C.slate500, strokeWidth: 2.5),
+                ),
+              ),
+            ),
+          ),
         ]),
       ),
     );
@@ -273,6 +288,119 @@ class _StudentHomeState extends State<StudentHome> {
       );
 }
 
+/// Category pills with one orange highlight that slides from the old pill to the tapped one.
+/// Three layers of the same pills: white backgrounds, the moving highlight, then the labels on top.
+class _CategoryPills extends StatefulWidget {
+  const _CategoryPills({required this.labels, required this.selected, required this.onSelect});
+  final List<String> labels;
+  final int selected;
+  final ValueChanged<int> onSelect;
+  @override
+  State<_CategoryPills> createState() => _CategoryPillsState();
+}
+
+class _CategoryPillsState extends State<_CategoryPills> {
+  static const _duration = Duration(milliseconds: 320);
+  static const _curve = Curves.easeOutCubic;
+
+  final _scroll = ScrollController();
+  final _stackKey = GlobalKey();
+  List<GlobalKey> _keys = [];
+  Rect? _highlight;
+  bool _scrollPending = false;
+
+  @override
+  void didUpdateWidget(_CategoryPills old) {
+    super.didUpdateWidget(old);
+    if (old.selected != widget.selected) _scrollPending = true;
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Finds where the selected pill sits, moves the highlight there and scrolls it into the middle.
+  void _measure() {
+    if (!mounted) return;
+    final i = widget.selected;
+    if (i < 0 || i >= _keys.length) return;
+    final pill = _keys[i].currentContext?.findRenderObject() as RenderBox?;
+    final stack = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (pill == null || stack == null || !pill.hasSize) return;
+    final rect = pill.localToGlobal(Offset.zero, ancestor: stack) & pill.size;
+    if (rect != _highlight) setState(() => _highlight = rect);
+    if (_scrollPending && _scroll.hasClients) {
+      _scrollPending = false;
+      final p = _scroll.position;
+      final target = (rect.center.dx - p.viewportDimension / 2).clamp(p.minScrollExtent, p.maxScrollExtent);
+      _scroll.animateTo(target, duration: _duration, curve: _curve);
+    }
+  }
+
+  Widget _pill(int i, {required bool front}) {
+    final selected = i == widget.selected;
+    final weight = i == 0 ? w7 : w6;
+    final box = Container(
+      key: front ? _keys[i] : null,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        // Until the highlight has been measured, the back layer paints the selected pill itself.
+        gradient: !front && selected && _highlight == null ? C.brandGradient : null,
+        color: front ? null : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: front ? Colors.transparent : C.a(C.amber200, 0.6)),
+      ),
+      // Both layers build the label the same way (same style merge), so their pills are exactly the same width.
+      child: front
+          ? TweenAnimationBuilder<Color?>(
+              tween: ColorTween(end: selected ? Colors.white : C.slate700),
+              duration: _duration,
+              curve: _curve,
+              builder: (_, color, __) => Text(widget.labels[i], style: ts(12, w: weight, color: color ?? C.slate700)),
+            )
+          : Text(widget.labels[i], style: ts(12, w: weight, color: Colors.transparent)),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: front ? GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => widget.onSelect(i), child: box) : box,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_keys.length != widget.labels.length) _keys = List.generate(widget.labels.length, (_) => GlobalKey());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+    final h = _highlight;
+    return SingleChildScrollView(
+      controller: _scroll,
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none, // let the highlight's shadow show
+      child: Stack(key: _stackKey, children: [
+        Row(children: [for (var i = 0; i < widget.labels.length; i++) _pill(i, front: false)]),
+        if (h != null)
+          AnimatedPositioned(
+            duration: _duration,
+            curve: _curve,
+            left: h.left,
+            top: h.top,
+            width: h.width,
+            height: h.height,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: C.brandGradient,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [BoxShadow(color: C.a(C.orange500, 0.3), blurRadius: 8, offset: const Offset(0, 3))],
+              ),
+            ),
+          ),
+        Row(children: [for (var i = 0; i < widget.labels.length; i++) _pill(i, front: true)]),
+      ]),
+    );
+  }
+}
+
 /// Floating orange "View Cart" bar shown above the bottom navigation on Home.
 class FloatingCartBar extends StatelessWidget {
   const FloatingCartBar({super.key, required this.onOpenCart});
@@ -286,14 +414,15 @@ class FloatingCartBar extends StatelessWidget {
     final current = s.canteenById(s.selectedCanteenId) ?? s.canteens.first;
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 384),
+        // Kept clearly narrower than the dock below it.
+        constraints: const BoxConstraints(maxWidth: 300),
         child: Tap(
           onTap: onOpenCart,
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               gradient: C.brandGradient,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
               boxShadow: [BoxShadow(color: C.a(const Color(0xFF431407), 0.2), blurRadius: 25, offset: const Offset(0, 20), spreadRadius: -5)],
             ),
             child: Row(children: [
@@ -301,7 +430,7 @@ class FloatingCartBar extends StatelessWidget {
                 width: 32, height: 32,
                 decoration: BoxDecoration(color: C.a(Colors.white, 0.2), borderRadius: BorderRadius.circular(12)),
                 alignment: Alignment.center,
-                child: txt('$count', 12, w: w7, font: F.mono, color: Colors.white),
+                child: RollingNumber(count, style: ts(12, w: w7, font: F.mono, color: Colors.white)),
               ),
               const SizedBox(width: 10),
               Expanded(

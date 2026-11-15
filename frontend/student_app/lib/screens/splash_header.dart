@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../state/app_scope.dart';
 import '../ui/icons.dart';
@@ -14,76 +15,87 @@ class SplashLogo extends StatefulWidget {
   State<SplashLogo> createState() => _SplashLogoState();
 }
 
-class _SplashLogoState extends State<SplashLogo> {
+class _SplashLogoState extends State<SplashLogo> with SingleTickerProviderStateMixin {
+  // Brunchy logo animation (assets/splash, built from the real logo): disc pops, the burger builds itself,
+  // takes a bite, then "Brunchy" rises in. The quote at the bottom fades in with the letters.
+  late final _c = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+  late final _quote = CurvedAnimation(parent: _c, curve: const Interval(0.6, 0.82, curve: Curves.easeOutCubic));
   bool _fading = false;
-  bool _shown = false;
-  Timer? _fade, _close;
+  Timer? _fallback;
 
   @override
   void initState() {
     super.initState();
-    // 1-second animation per PDF
-    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) setState(() => _shown = true); });
-    _fade = Timer(const Duration(milliseconds: 1100), () { if (mounted) setState(() => _fading = true); });
-    _close = Timer(const Duration(milliseconds: 1400), () => widget.onFinish());
+    _c.addStatusListener((st) {
+      if (st == AnimationStatus.completed) _finish(const Duration(milliseconds: 250));
+    });
+    // If the animation cannot load for any reason, never block the app.
+    _fallback = Timer(const Duration(seconds: 5), () => _finish(Duration.zero));
+  }
+
+  void _finish(Duration hold) {
+    _fallback?.cancel();
+    Future.delayed(hold, () {
+      if (!mounted || _fading) return;
+      setState(() => _fading = true);
+      Future.delayed(const Duration(milliseconds: 380), () { if (mounted) widget.onFinish(); });
+    });
   }
 
   @override
   void dispose() {
-    _fade?.cancel();
-    _close?.cancel();
+    _fallback?.cancel();
+    _c.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final logo = (size.shortestSide * 0.9).clamp(240.0, 460.0);
     return IgnorePointer(
       ignoring: _fading,
       child: AnimatedOpacity(
         opacity: _fading ? 0.0 : 1.0,
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 350),
         child: Container(
           color: C.cream,
-          alignment: Alignment.center,
-          child: AnimatedScale(
-            scale: _shown ? 1.0 : 0.95,
-            duration: const Duration(milliseconds: 500),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              SizedBox(
-                width: 96 + 6,
-                height: 96 + 6,
-                child: Stack(clipBehavior: Clip.none, children: [
-                  Positioned(
-                    left: 0, bottom: 0,
-                    child: Container(
-                      width: 96, height: 96,
-                      decoration: BoxDecoration(
-                        gradient: C.brandGradientDiag,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [BoxShadow(color: C.a(C.orange500, 0.4), blurRadius: 50, offset: const Offset(0, 25), spreadRadius: -12)],
-                      ),
-                      child: const Center(child: LIcon('UtensilsCrossed', size: 48, color: Colors.white, strokeWidth: 2.5)),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0, top: 0,
-                    child: Container(
-                      width: 24, height: 24,
-                      decoration: BoxDecoration(color: C.amber300, shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: C.a(Colors.black, 0.1), blurRadius: 6, offset: const Offset(0, 4))]),
-                      child: const Center(child: LIcon('Sparkles', size: 14, color: C.amber900)),
-                    ),
-                  ),
-                ]),
+          child: Stack(children: [
+            Center(
+              child: Lottie.asset(
+                'assets/splash/brunchy_splash.json',
+                controller: _c,
+                width: logo,
+                height: logo,
+                onLoaded: (comp) => _c
+                  ..duration = comp.duration
+                  ..forward(),
+                errorBuilder: (_, __, ___) {
+                  _finish(const Duration(milliseconds: 600));
+                  return const SizedBox.shrink();
+                },
               ),
-              const SizedBox(height: 20),
-              txt('Brunchy', 36, w: w8, font: F.display, spacing: -0.9),
-              const SizedBox(height: 4),
-              txt('CAMPUS FOOD ORDERING', 12, w: w6, color: C.brand, spacing: 1.2),
-              const SizedBox(height: 24),
-              Container(width: 40, height: 4, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFFB923C), Color(0xFFFBBF24)]), borderRadius: BorderRadius.circular(4))),
-            ]),
-          ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: MediaQuery.of(context).padding.bottom + 28,
+              child: AnimatedBuilder(
+                animation: _quote,
+                builder: (_, child) => Opacity(
+                  opacity: _quote.value,
+                  child: Transform.translate(offset: Offset(0, 14 * (1 - _quote.value)), child: child),
+                ),
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: 'A product of ', style: ts(12, w: w5, color: C.slate500, spacing: 0.3)),
+                    TextSpan(text: 'ANCILIENT', style: ts(12, w: w8, color: C.slate800, spacing: 2.4)),
+                  ]),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ]),
         ),
       ),
     );
@@ -111,7 +123,7 @@ class Header extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(children: [
               // Brand & Subtitle
-              logoTile(36, 16, const LIcon('UtensilsCrossed', size: 20, color: Colors.white, strokeWidth: 2.5)),
+              brandLogo(40),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [

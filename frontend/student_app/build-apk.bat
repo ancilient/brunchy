@@ -1,6 +1,8 @@
 @echo off
 REM Builds Brunchy-flutter.apk. Needs Flutter (https://docs.flutter.dev/get-started/install) and Android Studio.
 cd /d "%~dp0"
+REM Terminals opened before PUB_CACHE was set (in Windows user settings) don't see it; read it from there.
+if not defined PUB_CACHE for /f "tokens=2,*" %%a in ('reg query HKCU\Environment /v PUB_CACHE 2^>nul ^| findstr /b /c:"    PUB_CACHE"') do set "PUB_CACHE=%%b"
 where flutter >nul 2>nul || (echo ERROR: Flutter not found. Install it and add flutter\bin to PATH. & pause & exit /b 1)
 if not exist android (
   call flutter create . --platforms=android --org com.ancilient --project-name brunchy || goto :fail

@@ -119,11 +119,8 @@ class CartScreen extends StatelessWidget {
                   ]),
                 ]),
               ),
-              // Stall item blocks
-              for (final entry in groups.entries) ...[
-                const SizedBox(height: 16),
-                _stallBlock(s, entry.key, entry.value),
-              ],
+              const SizedBox(height: 16),
+              _itemsCard(s, groups),
               const SizedBox(height: 16),
               // Bill breakdown
               Container(
@@ -162,46 +159,64 @@ class CartScreen extends StatelessWidget {
 
   Widget _row(Widget a, Widget b) => Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [a, b]);
 
-  Widget _stallBlock(AppState s, int stallId, List<CartLine> lines) {
-    final stall = s.stallById(stallId)!;
-    final stallSub = lines.fold<double>(0, (a, l) => a + s.productById(l.productId)!.price * l.quantity);
+  /// Every item in one card, a divider under each. Items stay grouped by stall, and each row names its stall,
+  /// because every stall still gives its own bill and 3-digit code.
+  Widget _itemsCard(AppState s, Map<int, List<CartLine>> groups) {
+    final rows = [for (final e in groups.entries) for (final l in e.value) (s.stallById(e.key)!, l)];
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
       decoration: card(),
-      child: Column(children: [
-        Container(
-          padding: const EdgeInsets.only(bottom: 8),
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: C.slate100))),
-          child: Row(children: [
-            Expanded(child: txt(stall.name, 12, w: w7, font: F.display)),
-            pill('Separate Bill & 3-Digit Code', bg: C.orange100, fg: C.brand, radius: 99),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(child: txt('Items', 13, w: w7, font: F.display)),
+          pill('Separate bill & code per stall', bg: C.orange100, fg: C.brand, radius: 99),
+        ]),
+        const SizedBox(height: 4),
+        for (var i = 0; i < rows.length; i++) _itemRow(s, rows[i].$1, rows[i].$2, divider: i < rows.length - 1),
+      ]),
+    );
+  }
+
+  Widget _itemRow(AppState s, Stall stall, CartLine l, {required bool divider}) {
+    final p = s.productById(l.productId)!;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(border: divider ? const Border(bottom: BorderSide(color: C.slate100)) : null),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            txt(p.name, 12, w: w6, maxLines: 1),
+            const SizedBox(height: 2),
+            Row(children: [
+              dot(C.hex(stall.accentColor), 6),
+              const SizedBox(width: 4),
+              Flexible(child: txt(stall.name, 10, color: C.slate500, maxLines: 1)),
+            ]),
           ]),
         ),
-        for (final l in lines) ...[
-          const SizedBox(height: 10),
-          Builder(builder: (context) {
-            final p = s.productById(l.productId)!;
-            return Row(children: [
-              Expanded(child: txt(p.name, 12, w: w5, maxLines: 1)),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: C.cream, borderRadius: BorderRadius.circular(99), border: Border.all(color: C.amber200)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  _round(const LIcon('Minus', size: 12, color: C.slate700), Colors.white, () => s.updateCartQuantity(p.id, -1)),
-                  SizedBox(width: 26, child: txt('${l.quantity}', 12, w: w7, font: F.mono, align: TextAlign.center)),
-                  _round(const LIcon('Plus', size: 12, color: Colors.white), C.brand, () => s.updateCartQuantity(p.id, 1)),
-                ]),
-              ),
-              SizedBox(width: 58, child: txt('₹${fmtNum(p.price * l.quantity)}', 12, w: w7, font: F.mono, align: TextAlign.right)),
-            ]);
-          }),
-        ],
+        const SizedBox(width: 8),
         Container(
-          margin: const EdgeInsets.only(top: 12),
-          padding: const EdgeInsets.only(top: 8),
-          decoration: const BoxDecoration(border: Border(top: BorderSide(color: C.slate100))),
-          child: _row(txt('Stall Subtotal:', 11, color: C.slate500), txt('₹${fmtNum(stallSub)}', 11, w: w7, font: F.mono, color: C.slate800)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(color: C.cream, borderRadius: BorderRadius.circular(99), border: Border.all(color: C.amber200)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _round(const LIcon('Minus', size: 12, color: C.slate700), Colors.white, () => s.updateCartQuantity(p.id, -1)),
+            SizedBox(width: 26, child: Center(child: RollingNumber(l.quantity, style: ts(12, w: w7, font: F.mono)))),
+            _round(const LIcon('Plus', size: 12, color: Colors.white), C.brand, () => s.updateCartQuantity(p.id, 1)),
+          ]),
+        ),
+        SizedBox(width: 54, child: txt('₹${fmtNum(p.price * l.quantity)}', 12, w: w7, font: F.mono, align: TextAlign.right)),
+        // Remove the item completely in one tap.
+        Tap(
+          onTap: () => s.removeFromCart(p.id),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Container(
+              width: 24, height: 24,
+              decoration: BoxDecoration(color: C.rose50, shape: BoxShape.circle, border: Border.all(color: C.rose200)),
+              alignment: Alignment.center,
+              child: const LIcon('X', size: 12, color: C.rose600, strokeWidth: 2.5),
+            ),
+          ),
         ),
       ]),
     );
