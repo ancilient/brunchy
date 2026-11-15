@@ -1,4 +1,6 @@
 // lib/features/menu/widgets/menu_item_tile.dart
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -234,13 +236,7 @@ class MenuItemTile extends StatelessWidget {
                     width: 52,
                     height: 52,
                     color: AppColors.background,
-                    child: Center(
-                      child: Image.asset(
-                        'assets/images/logo_mascot.png',
-                        width: 38,
-                        height: 38,
-                      ),
-                    ),
+                    child: _buildItemPhoto(item.imageUrl),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -447,6 +443,49 @@ class MenuItemTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildItemPhoto(String? imageUrl) {
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      if (imageUrl.startsWith('assets/')) {
+        return Image.asset(
+          imageUrl,
+          width: 52,
+          height: 52,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildMascotPlaceholder(),
+        );
+      }
+      if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+        return Image.network(
+          imageUrl,
+          width: 52,
+          height: 52,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildMascotPlaceholder(),
+        );
+      }
+      if (!kIsWeb) {
+        return Image.file(
+          File(imageUrl),
+          width: 52,
+          height: 52,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildMascotPlaceholder(),
+        );
+      }
+    }
+    return _buildMascotPlaceholder();
+  }
+
+  Widget _buildMascotPlaceholder() {
+    return Center(
+      child: Image.asset(
+        'assets/images/logo_mascot.png',
+        width: 38,
+        height: 38,
       ),
     );
   }

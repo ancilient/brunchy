@@ -1,8 +1,11 @@
 // lib/features/menu/widgets/add_edit_item_sheet.dart
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/utils/image_helper.dart';
 import '../../../core/utils/validators.dart';
 import '../../../data/models/menu_item.dart';
 import '../menu_cubit.dart';
@@ -10,11 +13,13 @@ import '../menu_cubit.dart';
 class AddEditItemSheet extends StatefulWidget {
   final MenuItem? existingItem;
   final MenuCubit menuCubit;
+  final ImageHelper? imageHelper;
 
   const AddEditItemSheet({
     super.key,
     this.existingItem,
     required this.menuCubit,
+    this.imageHelper,
   });
 
   @override
@@ -31,12 +36,16 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
   late bool _isAvailable;
   late bool _isVeg;
   String? _selectedPhotoPath;
+  Uint8List? _selectedPhotoBytes;
+  bool _isCompressing = false;
+  late final ImageHelper _imageHelper;
 
   final List<String> _suggestedCategories = ['Burgers', 'Sides', 'Rolls', 'Drinks', 'Combos'];
 
   @override
   void initState() {
     super.initState();
+    _imageHelper = widget.imageHelper ?? ImageHelper();
     final item = widget.existingItem;
     _nameController = TextEditingController(text: item?.name ?? '');
     _priceController = TextEditingController(text: item != null ? item.price.toStringAsFixed(0) : '');
@@ -112,13 +121,109 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
     );
   }
 
-  void _simulatePhotoSelection() {
-    // Simulates choosing a photo (compressed to WebP < 150KB)
-    setState(() {
-      _selectedPhotoPath = 'assets/images/logo_mascot.png';
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Photo selected & compressed to WebP (84 KB)')),
+  Future<void> _handlePhotoSelection() async {
+    if (_isCompressing) return;
+
+    final source = await ImageHelper.showPhotoSourceSheet(context);
+    if (!mounted || source == null) return; // User cancelled source selection
+
+    setState(() => _isCompressing = true);
+
+    try {
+      final result = await _imageHelper.pickAndCompressImage(
+        source: source,
+        context: context,
+      );
+
+      if (!mounted) return;
+
+      if (result != null) {
+        setState(() {
+          _selectedPhotoPath = result.path;
+          _selectedPhotoBytes = result.bytes;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Photo selected & compressed to WebP (${result.sizeInKb} KB)'),
+            backgroundColor: AppColors.successGreen,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCompressing = false);
+      }
+    }
+  }
+
+  Widget _buildImagePreview() {
+    if (_isCompressing) {
+      return const Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: AppColors.primaryOrange,
+          ),
+        ),
+      );
+    }
+
+    if (_selectedPhotoBytes != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        child: Image.memory(
+          _selectedPhotoBytes!,
+          fit: BoxFit.cover,
+          width: 72,
+          height: 72,
+          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 24, color: AppColors.grey500),
+        ),
+      );
+    }
+
+    if (_selectedPhotoPath != null && _selectedPhotoPath!.isNotEmpty) {
+      final path = _selectedPhotoPath!;
+      Widget imageWidget;
+      if (path.startsWith('assets/')) {
+        imageWidget = Image.asset(path, fit: BoxFit.cover, width: 72, height: 72);
+      } else if (path.startsWith('http://') || path.startsWith('https://')) {
+        imageWidget = Image.network(
+          path,
+          fit: BoxFit.cover,
+          width: 72,
+          height: 72,
+          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 24, color: AppColors.grey500),
+        );
+      } else {
+        if (kIsWeb) {
+          imageWidget = Image.network(path, fit: BoxFit.cover, width: 72, height: 72);
+        } else {
+          imageWidget = Image.file(
+            File(path),
+            fit: BoxFit.cover,
+            width: 72,
+            height: 72,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 24, color: AppColors.grey500),
+          );
+        }
+      }
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        child: imageWidget,
+      );
+    }
+
+    return const Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.add_a_photo_outlined, size: 24, color: AppColors.grey600),
+        SizedBox(height: 2),
+        Text('Photo', style: TextStyle(fontSize: 10, color: AppColors.grey600)),
+      ],
     );
   }
 
@@ -161,7 +266,7 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: _simulatePhotoSelection,
+                    onTap: _handlePhotoSelection,
                     child: Container(
                       width: 72,
                       height: 72,
@@ -170,19 +275,7 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
                         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                         border: Border.all(color: AppColors.grey300),
                       ),
-                      child: _selectedPhotoPath != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                              child: Image.asset(_selectedPhotoPath!, fit: BoxFit.cover),
-                            )
-                          : const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add_a_photo_outlined, size: 24, color: AppColors.grey600),
-                                SizedBox(height: 2),
-                                Text('Photo', style: TextStyle(fontSize: 10, color: AppColors.grey600)),
-                              ],
-                            ),
+                      child: _buildImagePreview(),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),
@@ -193,8 +286,17 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
                         const Text('Item Photo (WebP < 150KB)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(height: 2),
                         Text(
-                          _selectedPhotoPath != null ? 'Image uploaded and compressed ✓' : 'Tap square to take or upload a photo',
-                          style: TextStyle(fontSize: 12, color: _selectedPhotoPath != null ? AppColors.successGreen : AppColors.grey600),
+                          _isCompressing
+                              ? 'Compressing image to WebP...'
+                              : (_selectedPhotoPath != null
+                                  ? 'Image uploaded and compressed ✓'
+                                  : 'Tap square to take or upload a photo'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _isCompressing
+                                ? AppColors.primaryOrange
+                                : (_selectedPhotoPath != null ? AppColors.successGreen : AppColors.grey600),
+                          ),
                         ),
                       ],
                     ),
