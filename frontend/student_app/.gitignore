@@ -9,3 +9,6 @@ android/.gradle/
 android/local.properties
 android/app/debug/
 android/app/release/
+
+# Python bytecode from tool/splash
+__pycache__/

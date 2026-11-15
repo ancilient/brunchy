@@ -34,13 +34,17 @@ for i, (f, p) in enumerate(zip(frames, shots)):
     sheet.paste(im, ((i % 4) * cell, (i // 4) * cell))
 sheet.save(D + 'sheet.png')
 
-# accuracy: last frame vs the master logo placed at the same scale
+# accuracy: last frame vs the real logo, scaled and placed so its disc matches the animation's disc
+from parts import fit_disc, UP, SRC as LOGO
 last = Image.open(shots[-1]).convert('RGB')
-S = 380 / 1536
-logo = Image.open(os.environ.get('BRUNCHY_LOGO', r'D:/Brunchy/app icon/master/brunchy-icon-4096.png')).convert('RGBA').resize((round(4096 * S),) * 2, Image.LANCZOS)
-ref = Image.new('RGBA', (1080, 1080), (250, 242, 228, 255))
-off = round(540 - 2048 * S)
-ref.alpha_composite(logo, (off, off))
+cx, cy, r = [v / UP for v in fit_disc()]
+k = 380 / r
+logo = Image.open(LOGO).convert('RGB')
+logo = logo.resize((round(logo.width * k), round(logo.height * k)), Image.LANCZOS)
+ref = Image.new('RGB', (1080, 1080), (250, 242, 228))
+mask = Image.new('L', logo.size, 0)
+ImageDraw.Draw(mask).ellipse((cx * k - 380, cy * k - 380, cx * k + 380, cy * k + 380), fill=255)
+ref.paste(logo, (round(540 - cx * k), round(540 - cy * k)), mask)
 ref = ref.convert('RGB')
 a, b = np.asarray(last, float), np.asarray(ref, float)
 diff = np.abs(a - b).sum(-1)
