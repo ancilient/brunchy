@@ -23,6 +23,7 @@ function parseResp(buffer) {
 }
 
 const server = net.createServer((socket) => {
+  socket.on('error', () => socket.destroy());
   socket.on('data', (data) => {
     try {
       const args = parseResp(data);

@@ -87,18 +87,67 @@ class _AcceptingOrdersToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<OrdersCubit>();
-    final accepting = cubit.acceptingOrders;
-    return Container(color: AppColors.cardWhite, padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4), child: Row(children: [
-      Icon(accepting ? Icons.check_circle : Icons.pause_circle, color: accepting ? AppColors.successGreen : AppColors.errorRed),
-      const SizedBox(width: AppSpacing.sm),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Accepting orders', style: TextStyle(fontWeight: FontWeight.bold)), Text(accepting ? 'ON - students can order' : 'OFF - students see Not taking orders', style: TextStyle(fontSize: 12, color: accepting ? AppColors.successGreen : AppColors.errorRed))])),
-      Switch(value: accepting, onChanged: (value) async {
-        if (value) { await cubit.setAcceptingOrders(true); return; }
-        if (!context.mounted) return;
-        final stop = await showModalBottomSheet<bool>(context: context, useRootNavigator: true, builder: (sheet) => SafeArea(child: Padding(padding: const EdgeInsets.all(AppSpacing.lg), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [Text('Stop new orders?', style: Theme.of(sheet).textTheme.titleLarge), Text('${loaded.newOrderCount} queued and ${loaded.preparingCount} preparing orders will continue.'), const SizedBox(height: AppSpacing.md), ElevatedButton(onPressed: () => Navigator.of(sheet).pop(true), child: const Text('Stop new orders')), TextButton(onPressed: () => Navigator.of(sheet).pop(false), child: const Text('Cancel'))]))));
-        if (stop == true) await cubit.setAcceptingOrders(false);
-      }),
-    ]));
+    final accepting = loaded.acceptingOrders;
+    return Container(
+        color: AppColors.cardWhite,
+        padding:
+            const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+        child: Row(children: [
+          Icon(accepting ? Icons.check_circle : Icons.pause_circle,
+              color: accepting ? AppColors.successGreen : AppColors.errorRed),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                const Text('Accepting orders',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                    accepting
+                        ? 'ON - students can order'
+                        : 'OFF - students see Not taking orders',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: accepting
+                            ? AppColors.successGreen
+                            : AppColors.errorRed))
+              ])),
+          Switch(
+              value: accepting,
+              onChanged: (value) async {
+                if (value) {
+                  await cubit.setAcceptingOrders(true);
+                  return;
+                }
+                if (!context.mounted) return;
+                final stop = await showModalBottomSheet<bool>(
+                    context: context,
+                    useRootNavigator: true,
+                    builder: (sheet) => SafeArea(
+                        child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text('Stop new orders?',
+                                      style:
+                                          Theme.of(sheet).textTheme.titleLarge),
+                                  Text(
+                                      '${loaded.newOrderCount} queued and ${loaded.preparingCount} preparing orders will continue.'),
+                                  const SizedBox(height: AppSpacing.md),
+                                  ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.of(sheet).pop(true),
+                                      child: const Text('Stop new orders')),
+                                  TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(sheet).pop(false),
+                                      child: const Text('Cancel'))
+                                ]))));
+                if (stop == true) await cubit.setAcceptingOrders(false);
+              }),
+        ]));
   }
 }
 
@@ -262,8 +311,7 @@ class _MakeListBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            const Icon(Icons.soup_kitchen,
-                color: AppColors.accent, size: 18),
+            const Icon(Icons.soup_kitchen, color: AppColors.accent, size: 18),
             const SizedBox(width: 6),
             const Text(
               'MAKE NOW:',
@@ -338,7 +386,10 @@ class _BatchActionBar extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: Colors.white)),
-              onPressed: () async { await context.read<OrdersCubit>().fireBatch(orderIds); if (context.mounted) _showResult(context); },
+              onPressed: () async {
+                await context.read<OrdersCubit>().fireBatch(orderIds);
+                if (context.mounted) _showResult(context);
+              },
             ),
           if (loaded.activeFilter == OrderFilter.preparing)
             ElevatedButton.icon(
@@ -354,7 +405,10 @@ class _BatchActionBar extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: Colors.white)),
-              onPressed: () async { await context.read<OrdersCubit>().readyBatch(orderIds); if (context.mounted) _showResult(context); },
+              onPressed: () async {
+                await context.read<OrdersCubit>().readyBatch(orderIds);
+                if (context.mounted) _showResult(context);
+              },
             ),
         ],
       ),
@@ -364,7 +418,8 @@ class _BatchActionBar extends StatelessWidget {
   void _showResult(BuildContext context) {
     final state = context.read<OrdersCubit>().state;
     if (state is OrderActionError && state.orderId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(state.message)));
     }
   }
 }
@@ -611,8 +666,7 @@ class _OrderCardState extends State<_OrderCard> {
             const SizedBox(height: AppSpacing.sm),
             if (isLoading)
               const Center(
-                  child:
-                      CircularProgressIndicator(color: AppColors.primary))
+                  child: CircularProgressIndicator(color: AppColors.primary))
             else
               Row(children: [
                 const Expanded(
@@ -638,8 +692,7 @@ class _OrderCardState extends State<_OrderCard> {
             const SizedBox(height: AppSpacing.sm),
             if (isLoading)
               const Center(
-                  child:
-                      CircularProgressIndicator(color: AppColors.primary))
+                  child: CircularProgressIndicator(color: AppColors.primary))
             else
               SizedBox(
                 width: double.infinity,
@@ -670,7 +723,7 @@ class _OrderCardState extends State<_OrderCard> {
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.successGreen),
                 icon: const Icon(Icons.verified_outlined, color: Colors.white),
-                    onPressed: () => _openOtpSheet(context, order),
+                onPressed: () => _openOtpSheet(context, order),
                 label: const Text('Hand Over',
                     style: TextStyle(
                         fontSize: 16,
@@ -718,7 +771,13 @@ class _OrderCardState extends State<_OrderCard> {
       shape: const RoundedRectangleBorder(
           borderRadius:
               BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusLg))),
-      builder: (_) => OtpEntrySheet(order: order, stallId: sl<LocalStorageService>().getStallIdDirect() ?? order.stallId, handoverService: HandoverService(sl<OrderRepository>()), onSuccess: (sheetResult) => Navigator.of(context, rootNavigator: true).pop(sheetResult)),
+      builder: (_) => OtpEntrySheet(
+          order: order,
+          stallId:
+              sl<LocalStorageService>().getStallIdDirect() ?? order.stallId,
+          handoverService: HandoverService(sl<OrderRepository>()),
+          onSuccess: (sheetResult) =>
+              Navigator.of(context, rootNavigator: true).pop(sheetResult)),
     );
     if (!context.mounted || result == null) return;
     if (result.isSuccess) {
@@ -726,7 +785,10 @@ class _OrderCardState extends State<_OrderCard> {
       if (!context.mounted) return;
       await HapticFeedback.mediumImpact();
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Order #${order.billNumber} handed over to ${order.studentFirstName}'), backgroundColor: AppColors.successGreen));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Order #${order.billNumber} handed over to ${order.studentFirstName}'),
+          backgroundColor: AppColors.successGreen));
     }
   }
 
@@ -760,16 +822,23 @@ class _OrderCardState extends State<_OrderCard> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.errorRed),
-                      onPressed: isSubmitting ? null : () async {
-                        setState(() => isSubmitting = true);
-                        final error = await ordersCubit.rejectOrder(orderId, reason: reason);
-                        if (!ctx.mounted) return;
-                        if (Navigator.of(dialogContext).canPop()) {
-                          Navigator.of(dialogContext).pop(_RejectResult(error: error));
-                        }
-                      },
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              setState(() => isSubmitting = true);
+                              final error = await ordersCubit
+                                  .rejectOrder(orderId, reason: reason);
+                              if (!ctx.mounted) return;
+                              if (Navigator.of(dialogContext).canPop()) {
+                                Navigator.of(dialogContext)
+                                    .pop(_RejectResult(error: error));
+                              }
+                            },
                       child: isSubmitting
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator())
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator())
                           : const Text('Reject & Refund'),
                     ),
                   ],
@@ -783,7 +852,8 @@ class _OrderCardState extends State<_OrderCard> {
         : result.error!;
     messenger.showSnackBar(SnackBar(
       content: Text(message),
-      backgroundColor: result.error == null ? AppColors.successGreen : AppColors.errorRed,
+      backgroundColor:
+          result.error == null ? AppColors.successGreen : AppColors.errorRed,
     ));
   }
 }

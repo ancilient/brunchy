@@ -25,6 +25,7 @@ class OrdersLoaded extends OrdersState {
   final RealtimeConnectionState connectionState;
   final int maxCapacity;
   final bool isOverrideActive;
+  final bool acceptingOrders;
 
   const OrdersLoaded({
     required this.newOrders,
@@ -35,6 +36,7 @@ class OrdersLoaded extends OrdersState {
     required this.connectionState,
     this.maxCapacity = 15,
     this.isOverrideActive = false,
+    this.acceptingOrders = true,
   });
 
   int get newOrderCount => newOrders.length;
@@ -108,6 +110,7 @@ class OrdersLoaded extends OrdersState {
     RealtimeConnectionState? connectionState,
     int? maxCapacity,
     bool? isOverrideActive,
+    bool? acceptingOrders,
   }) => OrdersLoaded(
         newOrders: newOrders ?? this.newOrders,
         preparingOrders: preparingOrders ?? this.preparingOrders,
@@ -117,6 +120,7 @@ class OrdersLoaded extends OrdersState {
         connectionState: connectionState ?? this.connectionState,
         maxCapacity: maxCapacity ?? this.maxCapacity,
         isOverrideActive: isOverrideActive ?? this.isOverrideActive,
+        acceptingOrders: acceptingOrders ?? this.acceptingOrders,
       );
 
   @override
@@ -129,6 +133,7 @@ class OrdersLoaded extends OrdersState {
     connectionState,
     maxCapacity,
     isOverrideActive,
+    acceptingOrders,
   ];
 }
 
