@@ -38,46 +38,62 @@ paths:
       responses:
         '200': { description: OK }
 
-  /auth/otp:
-    post:
+  /auth/options:
+    get:
       tags: [Auth]
       security: []
-      summary: Send a 6-digit login code to the phone
-      description: In development (OTP_DEV_ECHO=true) the code is returned as `devCode` instead of being sent by SMS.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, required: [phone], properties: { phone: { type: string, example: '9876543210' } } }
+      summary: Which sign-in buttons to show
+      description: '`googleClientId` is the OAuth Web client ID the apps pass to Google Sign-In as serverClientId (public, not a secret). See docs/google-sign-in-setup.md.'
       responses:
         '200':
-          description: Code sent
+          description: OK
           content:
             application/json:
-              schema: { type: object, properties: { expiresInSeconds: { type: integer }, devCode: { type: string } } }
-        '429': { $ref: '#/components/responses/Error' }
+              schema: { type: object, properties: { google: { type: boolean }, googleClientId: { type: string, nullable: true }, devLogin: { type: boolean } } }
 
-  /auth/verify:
+  /auth/google:
     post:
       tags: [Auth]
       security: []
-      summary: Check the code and log in
-      description: A phone number seen for the first time becomes a student account and needs `name` (error NAME_REQUIRED otherwise).
+      summary: Sign in with Google (free; replaces phone + OTP)
+      description: |
+        The app sends the ID token from Google Sign-In. The server verifies it with Google (signature, expiry, audience =
+        GOOGLE_CLIENT_IDS), then finds the account by Google id or by email. Vendors must use the Google account
+        registered for their stall (`npm run vendor:email`). A new Google account becomes a student, from the student app only.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [phone, code]
+              required: [idToken, app]
               properties:
-                phone: { type: string }
-                code: { type: string, example: '482913' }
-                name: { type: string }
-                registerNo: { type: string }
+                idToken: { type: string }
+                app: { type: string, enum: [student, vendor] }
       responses:
         '200': { $ref: '#/components/responses/Session' }
-        '400': { description: 'OTP_WRONG (details.attemptsLeft), OTP_EXPIRED, OTP_LOCKED, NAME_REQUIRED', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { description: 'Google rejected the token', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 'NOT_A_VENDOR, WRONG_APP, EMAIL_NOT_VERIFIED, ACCOUNT_MISMATCH, EMAIL_DOMAIN_NOT_ALLOWED, ACCOUNT_DISABLED', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: 'GOOGLE_NOT_CONFIGURED (GOOGLE_CLIENT_IDS empty)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /auth/dev-login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: DEVELOPMENT ONLY (DEV_LOGIN=true) - sign in as the demo student or a stall's vendor, no Google
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [app]
+              properties:
+                app: { type: string, enum: [student, vendor] }
+                stallId: { type: integer, description: 'For app=vendor, default 1 (Burger Hub)' }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '404': { description: 'Development login is switched off' }
 
   /auth/refresh:
     post:
@@ -358,7 +374,8 @@ components:
       properties:
         id: { type: string }
         name: { type: string }
-        phone: { type: string }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
         registerNo: { type: string, nullable: true }
         role: { type: string, enum: [student, vendor, manager, admin] }
         stallId: { type: string, nullable: true }

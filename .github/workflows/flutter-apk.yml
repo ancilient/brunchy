@@ -7,6 +7,9 @@ on:
   push:
     branches: [main]
     paths: ['frontend/student_app/**', '.github/workflows/flutter-apk.yml']
+  # Also check pull requests, so a broken build is caught before it reaches main.
+  pull_request:
+    paths: ['frontend/student_app/**', '.github/workflows/flutter-apk.yml']
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -19,9 +22,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      # Pinned to the team's Flutter version (README). "Latest stable" broke the build when Flutter 3.50 raised its
+      # minimum Android Gradle Plugin version. When the team upgrades Flutter, change it here too.
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.9
       - run: bash build-apk.sh
       - uses: actions/upload-artifact@v4
         with:

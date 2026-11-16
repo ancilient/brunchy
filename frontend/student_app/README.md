@@ -22,15 +22,18 @@ It sets up the port forward below, warns if the backend is not answering, then s
    flutter pub get
    flutter run
    ```
-4. Log in with the pre-filled demo student (9876543210). In development the backend returns the OTP, and the app fills it in.
+4. Tap **Sign in with Google** (any Google account that is not a stall's account; the first sign-in creates the
+   student), or **Continue as Demo Student** while the backend runs with `DEV_LOGIN=true`. Google needs the one-time
+   setup in [`docs/google-sign-in-setup.md`](../../docs/google-sign-in-setup.md); the app reads the Google client ID
+   from the backend, so no build flag is needed.
 
 **Phone on Wi-Fi instead of USB:** use your PC's IP address (from `ipconfig`) and allow port 4000 in Windows Firewall:
 ```
 flutter run --dart-define=API_URL=http://192.168.1.10:4000/api/v1
 ```
 
-**Vendor side while the vendor app is not connected yet:** accept / ready / hand over with the calls in
-[`backend/requests.http`](../../backend/requests.http) (Burger Hub vendor phone 9000000001). The student screen updates live.
+**Vendor side:** run [`../vendor_app`](../vendor_app) (Burger Hub), or use the calls in
+[`backend/requests.http`](../../backend/requests.http). The student screen updates live.
 
 ## Build an APK
 Needs **Flutter 3.47** (stable) and **Android Studio**. Run `flutter doctor` once to check.
@@ -42,6 +45,7 @@ Debug builds may use plain `http://` (for the local backend); release builds nee
 ## Where things are
 ```
 lib/api/api_client.dart       HTTP calls, login tokens (auto-refresh), server clock offset; API_URL setting
+lib/api/google_auth.dart      Sign in with Google (google_sign_in 7): gets the ID token the backend checks
 lib/api/realtime.dart         Socket.IO live updates (bill.updated, order.updated)
 lib/api/mappers.dart          server JSON -> the app's model classes (and server bill statuses -> screen statuses)
 lib/state/app_state.dart      menu, cart, checkout + 5-minute hold, shortage prompt, payment, orders, login
@@ -53,5 +57,5 @@ lib/ui/                       colours, fonts and icons
 
 ## Not connected yet
 - **Payment** uses the backend's mock gateway (no money moves). Razorpay comes in a later milestone.
-- **Push notifications** (FCM) and the **SMS** for the OTP come later; live updates work while the app is open.
-- Login tokens are kept in shared_preferences; move them to `flutter_secure_storage` before the Play Store release
+- **Push notifications** (FCM) come later; live updates work while the app is open.
+- Login tokens are kept in shared_preferences; move them to `flutter_secure_storage` before the Play Store release.

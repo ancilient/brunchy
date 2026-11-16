@@ -16,6 +16,7 @@ dependencies:
   flutter_svg: '>=2.0.10 <3.0.0'         # draws the Lucide icons
   http: ^1.6.0
   socket_io_client: ^3.1.6
+  google_sign_in: ^7.2.0
   lottie: ^3.8.2                         # splash animation (vector, assets/splash)
 
 dev_dependencies:

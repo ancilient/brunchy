@@ -30,9 +30,11 @@ forward below, warns if the backend is not answering, then starts `flutter run` 
    flutter pub get
    flutter run
    ```
-4. Log in with a stall's phone number (seed data): **9000000001** Burger Hub, 9000000002 Juice Corner, 9000000003
-   Parotta Point, 9000000004 Chai & Snacks, 9000000005 Grill Point, 9000000006 South Kitchen. In development the
-   backend returns the OTP and the app fills it in. The stall comes from the account; there is nothing to pick.
+4. Tap **Sign in with Google** with the Google account registered for the stall
+   (`npm run vendor:email -- <stallId> <email>` in `backend/`; stall 1 = Burger Hub). The stall comes from the account;
+   there is nothing to pick. While the backend runs with `DEV_LOGIN=true` you can also tap
+   **Continue as demo vendor (Burger Hub)**. Google needs the one-time setup in
+   [`docs/google-sign-in-setup.md`](../../docs/google-sign-in-setup.md).
 
 Phone on Wi-Fi instead: `flutter run --dart-define=API_URL=http://<your PC's IP>:4000/api/v1` (allow port 4000 in the firewall).
 
@@ -46,8 +48,8 @@ Phone on Wi-Fi instead: `flutter run --dart-define=API_URL=http://<your PC's IP>
 | Dashboard figures | Still demo data (no reports endpoint yet) |
 
 ### Offline demo mode
-`flutter run --dart-define=USE_MOCK=true` runs the original in-memory demo (no backend needed). In that mode any
-phone number and the code `123456` log in, and the pre-loaded ready order uses counter code `104`.
+`flutter run --dart-define=USE_MOCK=true` runs the original in-memory demo (no backend needed). In that mode
+"Continue as demo vendor" logs in, and the pre-loaded ready order uses counter code `104`.
 
 ### Tests
 `flutter test` (they use the in-memory repositories). The 5 tests in `test/regression/orders_fix_regression_test.dart`

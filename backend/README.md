@@ -4,13 +4,14 @@ The brain and the referee: it decides what is paid, what is in stock, what each 
 The apps only display what this server says.
 
 **Status: milestone 1 done** — the full ordering loop works end to end with a mock payment gateway:
-OTP login → canteens and today's menu → checkout with a 5-minute stock hold → payment webhook → one bill per stall with a
+Sign in with Google → canteens and today's menu → checkout with a 5-minute stock hold → payment webhook → one bill per stall with a
 bill number and 3-digit pickup code → vendor accept / ready / handover → live updates over Socket.IO.
 The API contract is in [`docs/api/openapi.yaml`](../docs/api/openapi.yaml).
 
 ## Stack
-Node.js 22+ · Express 5 · TypeScript · MySQL 8 (plain SQL with `mysql2`) · Redis (OTP codes, rate limits, menu cache) ·
-BullMQ (hold-expiry jobs) · Socket.IO (live bills) · zod (validation) · JWT (access + rotating refresh tokens) · vitest (tests).
+Node.js 22+ · Express 5 · TypeScript · MySQL 8 (plain SQL with `mysql2`) · Redis (rate limits, menu cache) ·
+BullMQ (hold-expiry jobs) · Socket.IO (live bills) · zod (validation) · Google Sign-In (`google-auth-library` verifies
+ID tokens) · JWT (access + rotating refresh tokens) · vitest (tests).
 
 ## Run it on your computer
 Needs **Node.js 22+** and **Docker Desktop**.
@@ -26,13 +27,19 @@ npm run db:reset              # create the tables and load the demo canteens, st
 npm run dev                   # http://localhost:4000/api/v1/health
 ```
 
-Try the whole flow with [`requests.http`](requests.http) (VS Code extension "REST Client"). Demo logins (the OTP is returned
-as `devCode` in development, and printed in the server log):
+Try the whole flow with [`requests.http`](requests.http) (VS Code extension "REST Client").
 
-| Phone | Account |
-|---|---|
-| 9876543210 | Demo Student |
-| 9000000001 … 9000000006 | Vendor of stall 1 … 6 (Burger Hub, Juice Corner, Parotta Point, Chai & Snacks, Grill Point, South Kitchen) |
+### Sign-in
+The apps sign in with **Google** (free; phone + OTP was removed because SMS costs money):
+the app gets an ID token from Google, `POST /auth/google` verifies it with Google (`GOOGLE_CLIENT_IDS` = the OAuth Web
+client ID) and returns Brunchy's own access + refresh tokens. A new Google account becomes a student (student app
+only); a vendor must use the Google account registered for their stall:
+```
+npm run vendor:email -- 1 someone@gmail.com      # stall 1 = Burger Hub ... 6 = South Kitchen
+```
+One-time Google Cloud setup: [`docs/google-sign-in-setup.md`](../docs/google-sign-in-setup.md).
+**Development login** (`DEV_LOGIN=true`, refused in production): `POST /auth/dev-login {"app":"student"}` or
+`{"app":"vendor","stallId":1}`. The apps show a "Continue as demo …" button for it.
 
 ### From the phone
 The server listens on all interfaces. Over USB the easiest is `adb reverse tcp:4000 tcp:4000`, after which the phone's
@@ -80,6 +87,6 @@ tests/               launch-gate tests: stock race, webhook replay, handover rul
   comes with the refunds milestone.
 
 ## Not built yet (next milestones)
-Razorpay adapter and real refunds · SMS provider for OTP · FCM push notifications · emergency stop with refunds ·
+Razorpay adapter and real refunds · FCM push notifications · emergency stop with refunds ·
 manager approvals, price-change requests, daily-menu admin · search and pickup slots · reports and vendor dashboard ·
 admin web · connecting the Flutter apps (replace their mock repositories with calls to this API).
