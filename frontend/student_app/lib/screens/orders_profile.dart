@@ -401,7 +401,8 @@ class ProfilePage extends StatelessWidget {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     txt(u.name, 16, w: w7, font: F.display),
                     const SizedBox(height: 2),
-                    txt('+91 ${u.phone}', 11, color: C.slate500, font: F.mono),
+                    // Google sign-in: the "phone" field holds the account's email when there is no phone number.
+                    txt(u.phone.contains('@') ? u.phone : '+91 ${u.phone}', 11, color: C.slate500, font: F.mono),
                     if (u.registerNo.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       pill('Reg: ${u.registerNo}', bg: C.amber50, fg: C.amber800, w: w6),

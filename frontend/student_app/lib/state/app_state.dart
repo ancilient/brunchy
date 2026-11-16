@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
+import '../api/google_auth.dart';
 import '../api/mappers.dart';
 import '../api/realtime.dart';
 import 'menu_data.dart';
@@ -272,26 +273,35 @@ class AppState extends ChangeNotifier {
     return 'High';
   }
 
-  // ---------------- login (OTP) ----------------
+  // ---------------- login (Sign in with Google) ----------------
+  final GoogleAuth _google = GoogleAuth();
 
-  /// Asks the server to send a code. Returns the code itself in development builds of the server (devCode), else null.
-  Future<String?> requestOtp(String phone) async {
-    final r = await api.post('/auth/otp', {'phone': phone});
-    return r['devCode'] as String?;
+  /// Which sign-in buttons to show: { google, googleClientId, devLogin } from GET /auth/options.
+  Future<({bool google, String? googleClientId, bool devLogin})> loginOptions() async {
+    final r = await api.get('/auth/options');
+    return (
+      google: r['google'] == true,
+      googleClientId: r['googleClientId'] as String?,
+      devLogin: r['devLogin'] == true,
+    );
   }
 
-  /// Checks the code. New phone numbers become student accounts (name required). Throws ApiException on failure.
-  Future<void> verifyOtp({required String phone, required String code, required String name, String? registerNo}) async {
-    final r = await api.post('/auth/verify', {
-      'phone': phone,
-      'code': code,
-      if (name.isNotEmpty) 'name': name,
-      if (registerNo != null && registerNo.isNotEmpty) 'registerNo': registerNo,
-    });
+  /// Opens Google's account picker, then signs in to Brunchy with the Google ID token.
+  /// A Google account seen for the first time becomes a student account. Throws ApiException or GoogleAuthCancelled.
+  Future<void> signInWithGoogle(String serverClientId) async {
+    final idToken = await _google.signIn(serverClientId);
+    final r = await api.post('/auth/google', {'idToken': idToken, 'app': 'student'});
+    await _startSession(r);
+  }
+
+  /// Development only (backend DEV_LOGIN=true): sign in as the demo student without Google.
+  Future<void> devLogin() async {
+    final r = await api.post('/auth/dev-login', {'app': 'student'});
+    await _startSession(r);
+  }
+
+  Future<void> _startSession(Map<String, dynamic> r) async {
     final user = userFromApi(r['user'] as Map<String, dynamic>);
-    if ((r['user'] as Map<String, dynamic>)['role'] != 'student') {
-      throw ApiException(403, 'NOT_A_STUDENT', 'This number belongs to a stall account. Use the Brunchy Vendor app.');
-    }
     await api.saveSession(r['accessToken'] as String, r['refreshToken'] as String);
     currentUser = user;
     _prefs.setString(_userKey, jsonEncode(currentUser.toJson()));
@@ -307,6 +317,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _forgetSession() {
+    unawaited(_google.signOut());
     _realtime.disconnect();
     unawaited(api.clearSession());
     _prefs.remove(_userKey);

@@ -1,25 +1,21 @@
 ### Sample calls for the VS Code "REST Client" extension (humao.rest-client): click "Send Request" above each one.
 ### Walk-through: student logs in → menu → checkout → pays (mock) → vendor accepts → ready → handover with the code.
-### Demo phones (seed): student 9876543210, Burger Hub vendor 9000000001, Juice Corner vendor 9000000002.
+### The apps sign in with Google (POST /auth/google). Here we use the development login (DEV_LOGIN=true in backend/.env).
 
 @base = http://localhost:4000/api/v1
 
 ### Health
 GET {{base}}/health
 
-### 1. Student: ask for a code (devCode is in the response in development)
-# @name studentOtp
-POST {{base}}/auth/otp
-Content-Type: application/json
+### 1. Which sign-in options the server offers
+GET {{base}}/auth/options
 
-{ "phone": "9876543210" }
-
-### 2. Student: log in with the code
+### 2. Student: development login as the demo student
 # @name student
-POST {{base}}/auth/verify
+POST {{base}}/auth/dev-login
 Content-Type: application/json
 
-{ "phone": "9876543210", "code": "{{studentOtp.response.body.devCode}}" }
+{ "app": "student" }
 
 @studentToken = {{student.response.body.accessToken}}
 
@@ -60,19 +56,12 @@ Content-Type: application/json
 GET {{base}}/orders/{{orderId}}
 Authorization: Bearer {{studentToken}}
 
-### 8. Vendor (Burger Hub): log in
-# @name vendorOtp
-POST {{base}}/auth/otp
-Content-Type: application/json
-
-{ "phone": "9000000001" }
-
-###
+### 8. Vendor (Burger Hub = stall 1): development login
 # @name vendor
-POST {{base}}/auth/verify
+POST {{base}}/auth/dev-login
 Content-Type: application/json
 
-{ "phone": "9000000001", "code": "{{vendorOtp.response.body.devCode}}" }
+{ "app": "vendor", "stallId": 1 }
 
 @vendorToken = {{vendor.response.body.accessToken}}
 

@@ -32,8 +32,8 @@ brunchy/
  Vendor app  ─┼──  HTTPS (JSON) + WebSocket + push  ──▶  backend (Node.js + Express)
  Admin web   ─┘                                              │
                                               ┌──────────────┼───────────────┐
-                                            MySQL          Redis       Razorpay / SMS / FCM
-                                     (stock, orders,  (cache, OTP,
+                                            MySQL          Redis       Google Sign-In / Razorpay / FCM
+                                     (stock, orders,  (cache,     
                                       money: the truth) job queue)
 ```
 The apps never talk to the database directly. The server decides what is paid, what is in stock and what each pickup code is worth.
@@ -47,7 +47,7 @@ The API contract (every request and response) is [`docs/api/openapi.yaml`](docs/
 | Admin page | Flutter Web (web build of the vendor app) |
 | Backend API | Node.js + Express + TypeScript |
 | Database | MySQL 8 |
-| Cache, OTP, rate limits, job queue | Redis + BullMQ |
+| Cache, rate limits, job queue | Redis + BullMQ |
 | Live updates | WebSocket (Socket.IO) |
 | Push notifications | Firebase Cloud Messaging |
 | Payments | Razorpay or Cashfree (UPI, test mode first) |
@@ -113,11 +113,19 @@ cd backend
 copy .env.example .env        # macOS/Linux: cp .env.example .env
 npm install
 npm run db:reset              # creates all tables and loads the demo canteens, stalls, menu and accounts
-npm test                      # optional: 40 tests should pass
+npm test                      # optional: 45 tests should pass
 ```
 Open `backend\.env` and replace `JWT_ACCESS_SECRET` and `MOCK_GATEWAY_SECRET` with long random strings
 (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` prints one). Keep
-`OTP_DEV_ECHO=true` and `IGNORE_CANTEEN_HOURS=true` for development.
+`DEV_LOGIN=true` and `IGNORE_CANTEEN_HOURS=true` for development.
+
+**Sign in with Google (optional at first).** Both apps sign in with Google. Until the Google Cloud project is set up,
+the apps show a **"Continue as demo …"** button (because `DEV_LOGIN=true`), so you can start without it. To turn
+Google sign-in on, follow [`docs/google-sign-in-setup.md`](docs/google-sign-in-setup.md) (about 10 minutes), put the
+Web client ID in `GOOGLE_CLIENT_IDS=` in `backend\.env`, and register the vendor's Google account for a stall:
+```
+npm run vendor:email -- 1 <google-account-email>     # stall 1 = Burger Hub
+```
 
 ### Step 4. Set up the apps (once)
 ```
@@ -159,14 +167,14 @@ flutter run
 The first `flutter run` takes 5–10 minutes (Gradle downloads); later runs about a minute. While it runs: `r` = hot
 reload, `R` = restart, `q` = quit. Both apps can be installed at the same time; run one, press `q`, then run the other.
 
-**Log in (demo accounts from the seed data)**
+**Sign in**
 
-| App | Phone number | Who |
+| App | With Google (after the setup) | Without Google (development) |
 |---|---|---|
-| Student app | **9876543210** | Demo Student |
-| Vendor app | **9000000001** | Burger Hub (9000000002 Juice Corner, …03 Parotta Point, …04 Chai & Snacks, …05 Grill Point, …06 South Kitchen) |
+| Student app | **Sign in with Google** with any Google account that is not a stall's account; the first sign-in creates the student | **Continue as Demo Student** |
+| Vendor app | **Sign in with Google** with the account registered for the stall (`npm run vendor:email`) | **Continue as demo vendor (Burger Hub)** |
 
-In development the backend returns the OTP and the app fills it in; it is also printed in Terminal 1.
+One Google account is either a student or a stall vendor, not both: test the two apps with two different accounts.
 
 **Try the full flow:** student app → Main Canteen → add a Burger Hub item → Cart → Pay (mock payment, nothing is
 charged) → the bill appears on the vendor app's board within seconds → Accept → Ready → in the Handover tab type the
@@ -212,7 +220,11 @@ A debug APK still needs the backend running **and** `adb reverse` (or the Wi-Fi 
 | `flutter run` builds for Windows / Chrome | Pick the phone: `flutter devices`, then `flutter run -d <id>`; in Android Studio pick the phone in the device dropdown. |
 | Gradle / Java version errors | Use Flutter 3.47 and the Java bundled with Android Studio; both apps use Gradle 9.3.1. `flutter clean` then `flutter pub get`. |
 | Dart errors like `Error when reading .../Pub/Cache/...` | Run `flutter pub get` again in that app folder (from your own terminal). |
-| Vendor app logs straight in to an old stall or shows errors | It kept an old demo session: log out (Settings) or uninstall and reinstall, then log in with a stall phone number. |
+| Vendor app logs straight in to an old stall or shows errors | It kept an old demo session: log out (Settings) or uninstall and reinstall, then sign in again. |
+| "Google sign-in is not set up on the server yet" | `GOOGLE_CLIENT_IDS` is empty in `backend\.env` (or the backend wasn't restarted). Use the demo button, or do [`docs/google-sign-in-setup.md`](docs/google-sign-in-setup.md). |
+| Google account picker closes at once / "Google sign-in did not work on this phone" | The app's Android OAuth client (package name + this PC's SHA-1) is missing in Google Cloud. See the setup guide, step 4. |
+| "Access blocked … app is in testing" | Add that Google account as a test user in Google Cloud (setup guide, step 2). |
+| Vendor app: "not registered to a stall" · Student app: "belongs to a stall" | Register the vendor's account with `npm run vendor:email -- <stallId> <email>`; use a different Google account for the student app. |
 
 Then open only the folder for your role and follow its README:
 
@@ -226,7 +238,7 @@ Open the app folder itself in Android Studio or VS Code (for example `frontend/s
 
 1. Get the latest code before you start: `git pull`
 2. Work on your own branch: `git checkout -b feature/short-description`
-3. Commit small steps with clear messages: `git commit -m "Add OTP verify endpoint"`
+3. Commit small steps with clear messages: `git commit -m "Add order history endpoint"`
 4. Push your branch: `git push -u origin feature/short-description`
 5. Open a pull request into `main` on GitHub. A teammate reviews it, then it is merged.
 

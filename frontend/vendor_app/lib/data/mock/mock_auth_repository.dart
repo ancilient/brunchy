@@ -11,21 +11,20 @@ class MockAuthRepository implements AuthRepository {
 
   MockAuthRepository(this._prefs);
 
+  // Offline demo (USE_MOCK=true): no Google; "Continue as demo vendor" signs in straight away.
   @override
-  Future<String?> requestOtp(String phone) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    return '123456'; // mock mode: any 6 digits work
-  }
+  Future<({bool google, String? googleClientId, bool devLogin})> loginOptions() async =>
+      (google: false, googleClientId: null, devLogin: true);
 
   @override
-  Future<({Vendor vendor, String token, String stallId, String stallName})> verifyOtp({
-    required String phone,
-    required String code,
-  }) async {
-    await Future.delayed(const Duration(milliseconds: 600));
-    final vendor = MockData.mockVendor.copyWith(phone: phone);
+  Future<({Vendor vendor, String token, String stallId, String stallName})> signInWithGoogle(String serverClientId) =>
+      devLogin();
+
+  @override
+  Future<({Vendor vendor, String token, String stallId, String stallName})> devLogin({String stallId = '1'}) async {
+    await Future.delayed(const Duration(milliseconds: 400));
     final stall = MockData.stalls.first;
-    return (vendor: vendor, token: MockData.mockToken, stallId: stall.id, stallName: stall.name);
+    return (vendor: MockData.mockVendor, token: MockData.mockToken, stallId: stall.id, stallName: stall.name);
   }
 
   @override

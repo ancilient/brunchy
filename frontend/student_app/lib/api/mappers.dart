@@ -114,7 +114,7 @@ Order orderFromApi(Map<String, dynamic> j, {String pickupSlot = 'now'}) => Order
 UserProfile userFromApi(Map<String, dynamic> j) => UserProfile(
       userId: _id(j['id']),
       name: j['name'] as String,
-      phone: (j['phone'] as String?) ?? '',
+      phone: (j['phone'] as String?) ?? (j['email'] as String?) ?? '', // Google accounts have an email, not a phone
       registerNo: (j['registerNo'] as String?) ?? '',
       isLoggedIn: true,
     );
