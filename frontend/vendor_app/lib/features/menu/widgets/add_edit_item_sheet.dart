@@ -1,8 +1,11 @@
 // lib/features/menu/widgets/add_edit_item_sheet.dart
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/utils/image_helper.dart';
 import '../../../core/utils/validators.dart';
 import '../../../data/models/menu_item.dart';
 import '../menu_cubit.dart';
@@ -10,11 +13,13 @@ import '../menu_cubit.dart';
 class AddEditItemSheet extends StatefulWidget {
   final MenuItem? existingItem;
   final MenuCubit menuCubit;
+  final ImageHelper? imageHelper;
 
   const AddEditItemSheet({
     super.key,
     this.existingItem,
     required this.menuCubit,
+    this.imageHelper,
   });
 
   @override
@@ -31,12 +36,16 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
   late bool _isAvailable;
   late bool _isVeg;
   String? _selectedPhotoPath;
+  Uint8List? _selectedPhotoBytes;
+  bool _isCompressing = false;
+  late final ImageHelper _imageHelper;
 
   final List<String> _suggestedCategories = ['Burgers', 'Sides', 'Rolls', 'Drinks', 'Combos'];
 
   @override
   void initState() {
     super.initState();
+    _imageHelper = widget.imageHelper ?? ImageHelper();
     final item = widget.existingItem;
     _nameController = TextEditingController(text: item?.name ?? '');
     _priceController = TextEditingController(text: item != null ? item.price.toStringAsFixed(0) : '');
@@ -161,7 +170,7 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: _simulatePhotoSelection,
+                    onTap: _handlePhotoSelection,
                     child: Container(
                       width: 72,
                       height: 72,
@@ -195,8 +204,17 @@ class _AddEditItemSheetState extends State<AddEditItemSheet> {
                         const Text('Item Photo (WebP < 150KB)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(height: 2),
                         Text(
-                          _selectedPhotoPath != null ? 'Image uploaded and compressed ✓' : 'Tap square to take or upload a photo',
-                          style: TextStyle(fontSize: 12, color: _selectedPhotoPath != null ? AppColors.successGreen : AppColors.grey600),
+                          _isCompressing
+                              ? 'Compressing image to WebP...'
+                              : (_selectedPhotoPath != null
+                                  ? 'Image uploaded and compressed ✓'
+                                  : 'Tap square to take or upload a photo'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _isCompressing
+                                ? AppColors.primaryOrange
+                                : (_selectedPhotoPath != null ? AppColors.successGreen : AppColors.grey600),
+                          ),
                         ),
                       ],
                     ),

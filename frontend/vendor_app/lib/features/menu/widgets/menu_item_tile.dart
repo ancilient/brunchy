@@ -1,4 +1,6 @@
 // lib/features/menu/widgets/menu_item_tile.dart
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
