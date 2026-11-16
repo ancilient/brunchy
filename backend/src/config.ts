@@ -30,7 +30,19 @@ const schema = z.object({
   PAYMENT_GATEWAY: z.enum(['mock']).default('mock'),
   MOCK_GATEWAY_SECRET: z.string().min(16, 'MOCK_GATEWAY_SECRET must be at least 16 characters'),
 
-  OTP_DEV_ECHO: bool(false),
+  // Google Sign-In: the OAuth "Web application" client ID(s) the apps request ID tokens for (comma separated).
+  // Empty = Google sign-in is switched off (only the development login works, if enabled).
+  GOOGLE_CLIENT_IDS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+  // Optional: only these email domains may create student accounts (comma separated, e.g. "sathyabama.ac.in"). Empty = any.
+  STUDENT_EMAIL_DOMAINS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((s) => s.trim().toLowerCase().replace(/^@/, '')).filter(Boolean)),
+  // Development only: POST /auth/dev-login signs in as a demo student or a stall's vendor without Google.
+  DEV_LOGIN: bool(false),
   IGNORE_CANTEEN_HOURS: bool(false),
   JOBS_ENABLED: bool(true),
   RATE_LIMIT_ENABLED: bool(true),
@@ -46,7 +58,7 @@ if (!parsed.success) {
 export const config = parsed.data;
 export const isProduction = config.NODE_ENV === 'production';
 
-if (isProduction && (config.OTP_DEV_ECHO || config.IGNORE_CANTEEN_HOURS)) {
-  console.error('OTP_DEV_ECHO and IGNORE_CANTEEN_HOURS must be false in production.');
+if (isProduction && (config.DEV_LOGIN || config.IGNORE_CANTEEN_HOURS)) {
+  console.error('DEV_LOGIN and IGNORE_CANTEEN_HOURS must be false in production.');
   process.exit(1);
 }

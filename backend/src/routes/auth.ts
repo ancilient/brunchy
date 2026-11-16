@@ -5,29 +5,25 @@ import { currentUser, requireAuth } from '../middleware/auth.js';
 import { byIp, rateLimit } from '../middleware/rateLimit.js';
 import * as auth from '../services/auth.js';
 
-const phone = z.string().regex(/^[6-9]\d{9}$/, 'Enter a 10-digit Indian mobile number');
+const app = z.enum(['student', 'vendor']);
 
 export const authRouter = Router();
 
-authRouter.post(
-  '/auth/otp',
-  rateLimit('otp', 5, 600, (req) => `${byIp(req)}:${req.body?.phone}`),
-  async (req, res) => {
-    const body = z.object({ phone }).parse(req.body);
-    res.json(await auth.requestOtp(body.phone));
-  },
-);
+/** Which sign-in buttons the apps should show. */
+authRouter.get('/auth/options', (_req, res) => {
+  res.json(auth.loginOptions());
+});
 
-authRouter.post('/auth/verify', rateLimit('verify', 20, 600, byIp), async (req, res) => {
-  const body = z
-    .object({
-      phone,
-      code: z.string().regex(/^\d{6}$/, 'The code has 6 digits'),
-      name: z.string().trim().min(2).max(100).optional(),
-      registerNo: z.string().trim().max(30).optional(),
-    })
-    .parse(req.body);
-  res.json(await auth.verifyOtp(body));
+/** Sign in with Google: the app sends the ID token it got from Google Sign-In. */
+authRouter.post('/auth/google', rateLimit('google', 20, 600, byIp), async (req, res) => {
+  const body = z.object({ idToken: z.string().min(20), app }).parse(req.body);
+  res.json(await auth.signInWithGoogle(body.idToken, body.app));
+});
+
+/** DEVELOPMENT ONLY (DEV_LOGIN=true): demo student, or the vendor of a stall (stallId, default 1). */
+authRouter.post('/auth/dev-login', async (req, res) => {
+  const body = z.object({ app, stallId: z.number().int().positive().optional() }).parse(req.body ?? {});
+  res.json(await auth.devLogin(body.app, body.stallId));
 });
 
 authRouter.post('/auth/refresh', async (req, res) => {

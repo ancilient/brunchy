@@ -1,14 +1,12 @@
 // lib/features/auth/login_screen.dart
-// Phone + OTP login. The stall comes from the account on the server (one phone per stall, blueprint 5.4),
-// so there is nothing to pick here.
+// Sign in with Google. Each stall has one registered Google account (one account per stall, blueprint 5.4),
+// so the stall comes from the server and there is nothing to pick here.
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
-import '../../core/constants/app_strings.dart';
-import '../../core/utils/validators.dart';
+import '../../core/errors/app_exception.dart';
 import 'auth_cubit.dart';
 import 'auth_state.dart';
 
@@ -19,33 +17,49 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  // Pre-filled with the backend's demo Burger Hub vendor (seed data) to make development quick.
-  final _phoneCtr = TextEditingController(text: '9000000001');
-  final _codeCtr = TextEditingController();
-  String? _codeSentTo;
-  bool _devFilled = false;
+  ({bool google, String? googleClientId, bool devLogin})? _options;
+  String? _optionsError;
+  bool _loadingOptions = true;
 
   @override
-  void dispose() {
-    _phoneCtr.dispose();
-    _codeCtr.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadOptions());
+  }
+
+  Future<void> _loadOptions() async {
+    setState(() {
+      _loadingOptions = true;
+      _optionsError = null;
+    });
+    try {
+      final o = await context.read<AuthCubit>().loadLoginOptions();
+      if (mounted) setState(() => _options = o);
+    } on AppException catch (e) {
+      if (mounted) setState(() => _optionsError = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _optionsError = 'Cannot reach Brunchy. Check your internet and try again.');
+    } finally {
+      if (mounted) setState(() => _loadingOptions = false);
+    }
+  }
+
+  void _google() {
+    final clientId = _options?.googleClientId;
+    if (_options?.google != true || clientId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Google sign-in is not set up on the server yet. Use the development login for now.'),
+      ));
+      return;
+    }
+    context.read<AuthCubit>().signInWithGoogle(clientId);
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
-        if (state is AuthOtpSent) {
-          setState(() {
-            _codeSentTo = state.phone;
-            if (state.devCode != null) {
-              _codeCtr.text = state.devCode!;
-              _devFilled = true;
-            }
-          });
-        } else if (state is AuthSuccess) {
+        if (state is AuthSuccess) {
           context.go('/home/orders');
         } else if (state is AuthError) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
@@ -56,86 +70,67 @@ class _LoginScreenState extends State<LoginScreen> {
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: AppSpacing.lg),
-                  Center(child: Image.asset('assets/images/logo_horizontal.png', height: 54)),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text('Welcome!', style: Theme.of(context).textTheme.displayLarge),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text('Sign in with your stall\'s phone number', style: Theme.of(context).textTheme.bodyLarge),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextFormField(
-                    controller: _phoneCtr,
-                    enabled: _codeSentTo == null,
-                    decoration: const InputDecoration(labelText: 'Stall phone number (10 digits)'),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
-                    validator: Validators.validatePhone,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  if (_codeSentTo != null) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    TextFormField(
-                      controller: _codeCtr,
-                      autofocus: !_devFilled,
-                      decoration: InputDecoration(
-                        labelText: '6-digit code sent to $_codeSentTo',
-                        helperText: _devFilled ? 'Development server: code filled in for you' : null,
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    TextButton(
-                      onPressed: () => setState(() {
-                        _codeSentTo = null;
-                        _codeCtr.clear();
-                        _devFilled = false;
-                      }),
-                      child: const Text('Change number'),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: AppSpacing.lg),
+                Center(child: Image.asset('assets/images/logo_horizontal.png', height: 54)),
+                const SizedBox(height: AppSpacing.lg),
+                Text('Welcome!', style: Theme.of(context).textTheme.displayLarge),
+                const SizedBox(height: AppSpacing.xs),
+                Text('Sign in with your stall\'s Google account', style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(height: AppSpacing.xl),
+                if (_loadingOptions)
+                  const Center(child: CircularProgressIndicator())
+                else if (_optionsError != null) ...[
+                  Text(_optionsError!, style: const TextStyle(color: Colors.red)),
+                  const SizedBox(height: AppSpacing.md),
+                  SizedBox(width: double.infinity, height: 52, child: ElevatedButton(onPressed: _loadOptions, child: const Text('Try again'))),
+                ] else
                   BlocBuilder<AuthCubit, AuthState>(
                     builder: (context, state) {
                       final loading = state is AuthLoading;
-                      final codeStep = _codeSentTo != null;
-                      final enabled = !loading &&
-                          (codeStep ? _codeCtr.text.trim().length == 6 : _phoneCtr.text.trim().length == 10);
-                      return SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: enabled ? (codeStep ? _verify : _sendCode) : null,
-                          child: loading
-                              ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                              : Text(codeStep ? AppStrings.startMyDay : 'Send code',
-                                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                        SizedBox(
+                          height: 52,
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              side: const BorderSide(color: AppColors.divider, width: 1.5),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusMd)),
+                            ),
+                            onPressed: loading ? null : _google,
+                            child: loading
+                                ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                    Text('G', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF4285F4))),
+                                    SizedBox(width: 12),
+                                    Text('Sign in with Google',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
+                                  ]),
+                          ),
                         ),
-                      );
+                        const SizedBox(height: AppSpacing.sm),
+                        Text('Use the Google account registered for your stall. Ask the canteen manager if yours is not added.',
+                            style: TextStyle(fontSize: 12, color: AppColors.grey600)),
+                        if (_options?.devLogin == true) ...[
+                          const SizedBox(height: AppSpacing.lg),
+                          SizedBox(
+                            height: 48,
+                            child: TextButton(
+                              onPressed: loading ? null : () => context.read<AuthCubit>().devLogin(),
+                              child: const Text('Continue as demo vendor (Burger Hub) · development only'),
+                            ),
+                          ),
+                        ],
+                      ]);
                     },
                   ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
       ),
     );
-  }
-
-  void _sendCode() {
-    if (!_formKey.currentState!.validate()) return;
-    FocusScope.of(context).unfocus();
-    context.read<AuthCubit>().sendOtp(_phoneCtr.text.trim());
-  }
-
-  void _verify() {
-    FocusScope.of(context).unfocus();
-    context.read<AuthCubit>().verifyOtp(phone: _codeSentTo!, code: _codeCtr.text.trim());
   }
 }

@@ -5,16 +5,16 @@ import 'package:brunchy_vendor/data/models/vendor.dart';
 /// Abstract repository for authentication and session management.
 /// Concrete implementations: [MockAuthRepository] (dev) and a future DioAuthRepository (prod).
 abstract class AuthRepository {
-  /// POST /auth/otp — sends a login code to the vendor's phone.
-  /// Returns the code itself when the backend runs in development (devCode), otherwise null.
-  Future<String?> requestOtp(String phone);
+  /// GET /auth/options — which sign-in buttons to show (Google, development login) and the Google Web client ID.
+  Future<({bool google, String? googleClientId, bool devLogin})> loginOptions();
 
-  /// POST /auth/verify — checks the code. The account decides the stall (one phone per stall),
+  /// Sign in with Google (free; replaces phone + OTP). Opens Google's account picker, then POST /auth/google.
+  /// The Google account must be the one registered for a stall; the server says which stall,
   /// so the stall and canteen are saved for today's session as part of login.
-  Future<({Vendor vendor, String token, String stallId, String stallName})> verifyOtp({
-    required String phone,
-    required String code,
-  });
+  Future<({Vendor vendor, String token, String stallId, String stallName})> signInWithGoogle(String serverClientId);
+
+  /// Development only (backend DEV_LOGIN=true): POST /auth/dev-login as the vendor of [stallId] (default 1).
+  Future<({Vendor vendor, String token, String stallId, String stallName})> devLogin({String stallId = '1'});
 
   /// Persists [vendor] and [token] to local storage.
   Future<void> saveVendorLocally(Vendor vendor, String token);
