@@ -6,6 +6,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../data/models/menu_item.dart';
+import '../../../core/widgets/rolling_number.dart';
+import '../../../core/widgets/app_dialog.dart';
 
 class MenuItemTile extends StatelessWidget {
   final MenuItem item;
@@ -26,7 +28,7 @@ class MenuItemTile extends StatelessWidget {
     final controller = TextEditingController(text: '${item.stock}');
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppDialog(
         title: Text('Set Stock for ${item.name}'),
         content: TextField(
           controller: controller,
@@ -158,16 +160,16 @@ class MenuItemTile extends StatelessWidget {
   Widget _buildVegNonVegBadge(bool isVeg) {
     final color = isVeg ? AppColors.successGreen : AppColors.errorRed;
     return Container(
-      width: 16,
-      height: 16,
+      width: 13,
+      height: 13,
       decoration: BoxDecoration(
-        border: Border.all(color: color, width: 1.5),
+        border: Border.all(color: color, width: 1.4),
         borderRadius: BorderRadius.circular(3),
       ),
       child: Center(
         child: Container(
-          width: 8,
-          height: 8,
+          width: 6,
+          height: 6,
           decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         ),
       ),
@@ -194,14 +196,14 @@ class MenuItemTile extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         text,
-        style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 11),
+        style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 10),
       ),
     );
   }
@@ -212,7 +214,7 @@ class MenuItemTile extends StatelessWidget {
     final isAvailable = item.isAvailable && item.stock > 0;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 3),
       elevation: 0.5,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -222,7 +224,7 @@ class MenuItemTile extends StatelessWidget {
       ),
       color: isAvailable ? AppColors.white : AppColors.grey50,
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -233,16 +235,10 @@ class MenuItemTile extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    width: 52,
-                    height: 52,
+                    width: 44,
+                    height: 44,
                     color: AppColors.background,
-                    child: Center(
-                      child: Image.asset(
-                        'assets/brand/burger.png',
-                        width: 38,
-                        height: 38,
-                      ),
-                    ),
+                    child: _buildItemPhoto(item.imageUrl),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -260,6 +256,7 @@ class MenuItemTile extends StatelessWidget {
                             child: Text(
                               item.name,
                               style: theme.textTheme.titleMedium?.copyWith(
+                                fontSize: 14,
                                 color: isAvailable ? AppColors.ink : AppColors.grey500,
                                 decoration: isAvailable ? null : TextDecoration.lineThrough,
                                 fontWeight: FontWeight.bold,
@@ -276,6 +273,7 @@ class MenuItemTile extends StatelessWidget {
                           Text(
                             CurrencyFormatter.format(item.price),
                             style: theme.textTheme.bodyMedium?.copyWith(
+                              fontSize: 13,
                               color: isAvailable ? AppColors.primary : AppColors.grey500,
                               fontWeight: FontWeight.bold,
                             ),
@@ -318,15 +316,17 @@ class MenuItemTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.grey600),
+                      icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.grey600),
                       tooltip: 'Edit Item',
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                       onPressed: onEdit,
                     ),
                     Semantics(
                       label: '${item.name} availability toggle',
-                      child: Switch(
+                      child: Transform.scale(
+                        scale: 0.8,
+                        child: Switch(
                         value: isAvailable,
                         activeColor: AppColors.brandTeal,
                         activeTrackColor: AppColors.brandTeal.withValues(alpha: 0.3),
@@ -339,15 +339,16 @@ class MenuItemTile extends StatelessWidget {
                           }
                         },
                       ),
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
 
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: 6),
             const Divider(height: 1),
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: 6),
 
             // Stock: a compact [ - n + ] pill, quick-add chips and (when low / sold out) Restock.
             // The right-hand group scales down instead of overflowing on narrow screens.
@@ -378,11 +379,11 @@ class MenuItemTile extends StatelessWidget {
                       onTap: () => _showTapToTypeDialog(context),
                       borderRadius: BorderRadius.circular(6),
                       child: Container(
-                        width: 38,
-                        height: 30,
+                        width: 32,
+                        height: 26,
                         alignment: Alignment.center,
-                        child: Text('${item.stock}',
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, color: AppColors.ink, fontSize: 15)),
+                        child: RollingNumber(item.stock,
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, color: AppColors.ink, fontSize: 14)),
                       ),
                     ),
                     _miniButton(
@@ -440,13 +441,31 @@ class MenuItemTile extends StatelessWidget {
     );
   }
 
+  /// The item's photo: an asset, a web link, or a file picked with the camera/gallery (image_helper.dart).
+  Widget _buildItemPhoto(String? imageUrl) {
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      if (imageUrl.startsWith('assets/')) {
+        return Image.asset(imageUrl, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder());
+      }
+      if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+        return Image.network(imageUrl, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder());
+      }
+      if (!kIsWeb) {
+        return Image.file(File(imageUrl), width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder());
+      }
+    }
+    return _buildPlaceholder();
+  }
+
+  Widget _buildPlaceholder() => Center(child: Image.asset('assets/brand/burger.png', width: 32, height: 32));
+
   Widget _miniButton({required IconData icon, required Color bg, required Color fg, VoidCallback? onTap}) => Material(
         color: bg,
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
-          child: SizedBox(width: 30, height: 30, child: Icon(icon, size: 16, color: fg)),
+          child: SizedBox(width: 26, height: 26, child: Icon(icon, size: 14, color: fg)),
         ),
       );
 
@@ -459,10 +478,10 @@ class MenuItemTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[Icon(icon, size: 13, color: fg), const SizedBox(width: 4)],
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg)),
+            if (icon != null) ...[Icon(icon, size: 12, color: fg), const SizedBox(width: 4)],
+            Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: fg)),
           ]),
         ),
       ),

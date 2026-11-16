@@ -17,6 +17,8 @@ import '../../data/models/dashboard_period.dart';
 import '../../services/realtime_connection_state.dart';
 import '../stall_control/stall_control_cubit.dart';
 import '../../core/widgets/brand_logo.dart';
+import '../../core/widgets/sliding_tabs.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   final StatefulNavigationShell shell;
@@ -53,116 +55,107 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 58,
+        titleSpacing: 0,
+        surfaceTintColor: Colors.transparent,
+        // Menu button on its own, separate from the logo.
         leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: Padding(
-              padding: const EdgeInsets.all(4.0),
-              child: const BrandLogo(size: 32, shadow: false),
+          builder: (ctx) => Center(
+            child: Material(
+              color: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => Scaffold.of(ctx).openDrawer(),
+                child: const Tooltip(
+                  message: 'Open menu',
+                  child: SizedBox(width: 32, height: 32, child: Icon(Icons.menu_rounded, size: 18, color: AppColors.ink)),
+                ),
+              ),
             ),
-            tooltip: 'Open Menu',
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              stallName,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: AppColors.ink,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+        // Brand block: logo, stall name, canteen.
+        title: Row(children: [
+          const BrandLogo(size: 36, shadow: false),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  stallName,
+                  style: theme.textTheme.titleMedium?.copyWith(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.ink, height: 1.2),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Row(children: [
+                  const Icon(Icons.storefront_rounded, size: 12, color: AppColors.textSecondary),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      canteenName,
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ]),
+              ],
             ),
-            Text(
-              canteenName,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.grey600,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+          ),
+        ]),
         actions: [
+          // Live connection status as a clear pill.
           BlocBuilder<OrdersCubit, OrdersState>(
             builder: (_, state) {
               final isConnected = state is! OrdersLoaded ||
                   state.connectionState == RealtimeConnectionState.connected;
+              final color = isConnected ? AppColors.successGreen : AppColors.warningAmber;
               return Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.only(right: AppSpacing.md),
                 child: Tooltip(
-                  message: isConnected
-                      ? 'Live Connection: Connected'
-                      : 'Reconnecting...',
-                  child: Container(
-                    width: 10,
-                    height: 10,
+                  message: isConnected ? 'Live connection: connected' : 'Reconnecting...',
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isConnected
-                          ? AppColors.successGreen
-                          : AppColors.warningAmber,
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(color: color.withValues(alpha: 0.35)),
                     ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                      const SizedBox(width: 5),
+                      Text(isConnected ? 'Live' : 'Reconnecting',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+                    ]),
                   ),
                 ),
               );
             },
           ),
         ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1, color: AppColors.divider),
+        ),
       ),
       drawer: _buildDrawer(context),
       body: widget.shell,
       bottomNavigationBar: BlocBuilder<OrdersCubit, OrdersState>(
         builder: (context, state) {
           final newCount = state is OrdersLoaded ? state.newOrderCount : 0;
-          return BottomNavigationBar(
+          return AnimatedDock(
             currentIndex: widget.shell.currentIndex,
-            onTap: (index) {
-              widget.shell.goBranch(index,
-                  initialLocation: index == widget.shell.currentIndex);
-            },
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: AppColors.primary,
-            unselectedItemColor: AppColors.grey500,
+            onTap: (index) => widget.shell.goBranch(index, initialLocation: index == widget.shell.currentIndex),
             items: [
-              BottomNavigationBarItem(
-                icon: Badge(
-                  isLabelVisible: newCount > 0,
-                  label: Text('$newCount'),
-                  child: const Icon(Icons.receipt_long_outlined),
-                ),
-                activeIcon: Badge(
-                  isLabelVisible: newCount > 0,
-                  label: Text('$newCount'),
-                  child: const Icon(Icons.receipt_long),
-                ),
-                label: 'Orders',
-              ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.pin_outlined),
-                activeIcon: Icon(Icons.pin),
-                label: 'Handover',
-              ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.restaurant_menu_outlined),
-                activeIcon: Icon(Icons.restaurant_menu),
-                label: 'Menu',
-              ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.inventory_2_outlined),
-                activeIcon: Icon(Icons.inventory_2),
-                label: 'Inventory',
-              ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.bar_chart_outlined),
-                activeIcon: Icon(Icons.bar_chart),
-                label: 'Dashboard',
-              ),
+              DockItem(icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long, label: 'Orders', badge: newCount),
+              const DockItem(icon: Icons.pin_outlined, activeIcon: Icons.pin, label: 'Handover'),
+              const DockItem(icon: Icons.restaurant_menu_outlined, activeIcon: Icons.restaurant_menu, label: 'Menu'),
+              const DockItem(icon: Icons.inventory_2_outlined, activeIcon: Icons.inventory_2, label: 'Inventory'),
+              const DockItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, label: 'Dashboard'),
             ],
           );
         },
@@ -253,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => AppDialog(
         title: Text(activeCount > 0 ? '⚠ Active Orders' : 'End Day?'),
         content: Text(activeCount > 0
             ? 'You have $activeCount active orders. Ending your day will cancel them and refund the students. This cannot be undone.'
@@ -292,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppDialog(
         title: Text(hasOffline ? '⚠ Unsynced Offline Actions' : 'Log Out?'),
         content: Text(hasOffline
             ? 'You have $queueCount pending action(s) waiting to sync with the server. Logging out now will discard these actions.\n\nAre you sure you want to log out?'

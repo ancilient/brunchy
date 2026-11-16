@@ -13,6 +13,7 @@ import '../../data/models/adjustment_reason.dart';
 import 'inventory_cubit.dart';
 import 'inventory_state.dart';
 import 'widgets/inventory_item_row.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class InventoryScreen extends StatelessWidget {
   const InventoryScreen({super.key});
@@ -24,7 +25,7 @@ class InventoryScreen extends StatelessWidget {
   Future<void> _showResetStockDialog(BuildContext context, String stallId, String date, List<InventoryItem> items) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppDialog(
         title: const Text('Reset Daily Stock?'),
         content: const Text(
           'This will reset the current stock of all items back to their opening values for today. This action cannot be undone.',

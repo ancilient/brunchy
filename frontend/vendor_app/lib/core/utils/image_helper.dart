@@ -275,7 +275,7 @@ class ImageHelper {
                   'Select Item Photo',
                   style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: AppColors.brandBrown,
+                        color: AppColors.ink,
                       ),
                   textAlign: TextAlign.center,
                 ),
@@ -290,10 +290,10 @@ class ImageHelper {
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryOrange.withValues(alpha: 0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.camera_alt_outlined, color: AppColors.primaryOrange),
+                    child: const Icon(Icons.camera_alt_outlined, color: AppColors.primary),
                   ),
                   title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: const Text('Use camera to photograph the dish'),
@@ -304,10 +304,10 @@ class ImageHelper {
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.vendorTeal.withValues(alpha: 0.1),
+                      color: AppColors.brandTeal.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.photo_library_outlined, color: AppColors.vendorTeal),
+                    child: const Icon(Icons.photo_library_outlined, color: AppColors.brandTeal),
                   ),
                   title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: const Text('Pick an existing photo or file'),

@@ -8,6 +8,7 @@ import '../../core/constants/app_strings.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../data/models/dashboard_period.dart';
+import '../../data/models/dashboard_stats.dart';
 import '../../injection_container.dart';
 import '../../services/local_storage_service.dart';
 import 'dashboard_cubit.dart';
@@ -15,7 +16,6 @@ import 'dashboard_state.dart';
 import 'widgets/peak_hours_bar.dart';
 import 'widgets/period_selector.dart';
 import 'widgets/sales_chart.dart';
-import 'widgets/summary_card.dart';
 import 'widgets/top_items_list.dart';
 import '../stall_control/widgets/stall_control_panel.dart';
 
@@ -125,122 +125,9 @@ class DashboardScreen extends StatelessWidget {
           children: [
             const StallControlPanel(),
             const SizedBox(height: AppSpacing.md),
-            // Row 1: Summary Cards with LayoutBuilder for responsive layout
-            LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth <= 360) {
-                  return Column(
-                    children: [
-                      SummaryCard(
-                        title: 'Total Revenue',
-                        value: CurrencyFormatter.format(stats.totalRevenue),
-                        changeText: CurrencyFormatter.formatChangePct(
-                          pct: stats.revenueChangePct,
-                          isNew: stats.revenueChangeIsNew,
-                          isNone: stats.revenueChangeIsNone,
-                        ),
-                        isPositive: stats.revenueChangePct >= 0,
-                        isNeutral: stats.revenueChangeIsNone,
-                        icon: Icons.currency_rupee,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      SummaryCard(
-                        title: 'Total Orders',
-                        value: '${stats.orderCount}',
-                        changeText: CurrencyFormatter.formatChangePct(
-                          pct: stats.orderCountChangePct.toDouble(),
-                          isNew: stats.orderChangeIsNew,
-                          isNone: stats.orderChangeIsNone,
-                        ),
-                        isPositive: stats.orderCountChangePct >= 0,
-                        isNeutral: stats.orderChangeIsNone,
-                        icon: Icons.receipt_long,
-                      ),
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(
-                      child: SummaryCard(
-                        title: 'Total Revenue',
-                        value: CurrencyFormatter.format(stats.totalRevenue),
-                        changeText: CurrencyFormatter.formatChangePct(
-                          pct: stats.revenueChangePct,
-                          isNew: stats.revenueChangeIsNew,
-                          isNone: stats.revenueChangeIsNone,
-                        ),
-                        isPositive: stats.revenueChangePct >= 0,
-                        isNeutral: stats.revenueChangeIsNone,
-                        icon: Icons.currency_rupee,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: SummaryCard(
-                        title: 'Total Orders',
-                        value: '${stats.orderCount}',
-                        changeText: CurrencyFormatter.formatChangePct(
-                          pct: stats.orderCountChangePct.toDouble(),
-                          isNew: stats.orderChangeIsNew,
-                          isNone: stats.orderChangeIsNone,
-                        ),
-                        isPositive: stats.orderCountChangePct >= 0,
-                        isNeutral: stats.orderChangeIsNone,
-                        icon: Icons.receipt_long,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            SummaryCard(
-              title: 'Average Order Value (AOV)',
-              value: CurrencyFormatter.format(stats.avgOrderValue),
-              changeText: CurrencyFormatter.formatChangePct(
-                pct: stats.aovChangePct,
-                isNew: stats.aovChangeIsNew,
-                isNone: stats.aovChangeIsNone,
-              ),
-              isPositive: stats.aovChangePct >= 0,
-              isNeutral: stats.aovChangeIsNone,
-              icon: Icons.analytics_outlined,
-            ),
+            _buildHero(stats, period),
             const SizedBox(height: AppSpacing.md),
-
-            Card(
-              elevation: 0.5,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                side: const BorderSide(color: AppColors.grey200),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Row(
-                  children: [
-                    const Icon(Icons.timer_outlined,
-                        color: AppColors.primary),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        'Average preparation time',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ),
-                    Text(
-                      '${stats.avgPrepMinutes.toStringAsFixed(1)} min',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.ink,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-
+            _sectionLabel('Sales trend'),
             // Sales Trend Chart
             SalesChart(
               chartData: stats.chartData,
@@ -250,7 +137,7 @@ class DashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // Order Status Split
+            _sectionLabel('Orders'),
             _buildStatusSplitCard(context, stats.statusSplit),
             const SizedBox(height: AppSpacing.md),
 
@@ -260,7 +147,7 @@ class DashboardScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.md),
             ],
 
-            // Top & Slow Items
+            _sectionLabel('Menu performance'),
             TopItemsList(
               topItems: stats.topItems,
               slowItems: stats.slowItems,
@@ -274,97 +161,161 @@ class DashboardScreen extends StatelessWidget {
     return const SizedBox.shrink();
   }
 
+  // ---------------- redesigned pieces ----------------
+
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, AppSpacing.sm, 4, 6),
+        child: Text(text.toUpperCase(),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1, color: AppColors.textSecondary)),
+      );
+
+  /// One teal card: total revenue up top, then orders / average order / prep time as mini tiles.
+  Widget _buildHero(DashboardStats stats, DashboardPeriod period) {
+    String change(double pct, bool isNew, bool isNone) =>
+        CurrencyFormatter.formatChangePct(pct: pct, isNew: isNew, isNone: isNone);
+    IconData arrow(double pct, bool isNone) =>
+        isNone ? Icons.remove_rounded : (pct >= 0 ? Icons.north_east_rounded : Icons.south_east_rounded);
+
+    Widget tile(IconData icon, String value, String label, [String? sub]) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.9)),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
+              Text(label, style: TextStyle(fontSize: 10.5, color: Colors.white.withValues(alpha: 0.8))),
+              if (sub != null) ...[
+                const SizedBox(height: 2),
+                Text(sub, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.9))),
+              ],
+            ]),
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md + 2),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.brandTeal, AppColors.primary, AppColors.primaryDark],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.28), blurRadius: 18, offset: const Offset(0, 8))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text('Total revenue',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.85))),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(99)),
+            child: Text(period.label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Colors.white)),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(CurrencyFormatter.format(stats.totalRevenue),
+              style: const TextStyle(fontSize: 30, height: 1.15, fontWeight: FontWeight.w800, color: Colors.white)),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(99)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(arrow(stats.revenueChangePct, stats.revenueChangeIsNone), size: 13, color: Colors.white),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text('${change(stats.revenueChangePct, stats.revenueChangeIsNew, stats.revenueChangeIsNone)} vs previous period',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+            ),
+          ]),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        // Same height for all three tiles.
+        IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          tile(Icons.receipt_long_rounded, '${stats.orderCount}', 'Orders',
+              change(stats.orderCountChangePct.toDouble(), stats.orderChangeIsNew, stats.orderChangeIsNone)),
+          const SizedBox(width: AppSpacing.sm),
+          tile(Icons.shopping_bag_outlined, CurrencyFormatter.format(stats.avgOrderValue), 'Avg order',
+              change(stats.aovChangePct, stats.aovChangeIsNew, stats.aovChangeIsNone)),
+          const SizedBox(width: AppSpacing.sm),
+          tile(Icons.timer_outlined, '${stats.avgPrepMinutes.toStringAsFixed(1)} min', 'Avg prep'),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  /// Completed vs cancelled as one bar with a legend.
   Widget _buildStatusSplitCard(BuildContext context, Map<String, int> split) {
-    final theme = Theme.of(context);
     final completed = split['collected'] ?? split['completed'] ?? 0;
     final cancelled = split['cancelled'] ?? 0;
     final total = completed + cancelled;
+    final success = total == 0 ? 0 : (completed / total * 100).round();
 
-    return Card(
-      elevation: 0.5,
-      shape: RoundedRectangleBorder(
+    Widget legend(Color color, String label, int count, String note) => Row(children: [
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          ),
+          Text('$count', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+          const SizedBox(width: 6),
+          SizedBox(width: 38, child: Text(note, textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: AppColors.grey500))),
+        ]);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.cardWhite,
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        side: const BorderSide(color: AppColors.grey200),
+        border: Border.all(color: AppColors.divider),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Order Fulfillment Split',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: AppColors.successGreen.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Completed',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.successGreen,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text('$completed orders',
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.successGreen)),
-                        if (total > 0)
-                          Text(
-                              '${((completed / total) * 100).toStringAsFixed(0)}% success rate',
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.grey600)),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: AppColors.errorRed.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Cancelled / Refunded',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.errorRed,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text('$cancelled orders',
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.errorRed)),
-                        if (total > 0)
-                          Text(
-                              '${((cancelled / total) * 100).toStringAsFixed(0)}% drop rate',
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.grey600)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Expanded(
+            child: Text('Order fulfilment', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.ink)),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: AppColors.successGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(99)),
+            child: Text('$success% success', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.successGreen)),
+          ),
+        ]),
+        const SizedBox(height: AppSpacing.md),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: SizedBox(
+            height: 8,
+            child: total == 0
+                ? Container(color: AppColors.grey200)
+                : Row(children: [
+                    if (completed > 0) Expanded(flex: completed, child: Container(color: AppColors.successGreen)),
+                    if (completed > 0 && cancelled > 0) const SizedBox(width: 2),
+                    if (cancelled > 0) Expanded(flex: cancelled, child: Container(color: AppColors.errorRed)),
+                  ]),
+          ),
         ),
-      ),
+        const SizedBox(height: AppSpacing.sm + 2),
+        legend(AppColors.successGreen, 'Completed', completed, total == 0 ? '' : '$success%'),
+        const SizedBox(height: 4),
+        legend(AppColors.errorRed, 'Cancelled / refunded', cancelled, total == 0 ? '' : '${100 - success}%'),
+      ]),
     );
   }
 

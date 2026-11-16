@@ -9,6 +9,7 @@ import '../../data/models/order_status.dart';
 import '../../data/models/cancel_reason.dart';
 import '../../injection_container.dart';
 import '../../data/repositories/order_repository.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final String orderId;
@@ -147,7 +148,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     showDialog(
         context: context,
         builder: (_) => StatefulBuilder(
-              builder: (ctx, setState) => AlertDialog(
+              builder: (ctx, setState) => AppDialog(
                 title: const Text('Cancel Order'),
                 content: Column(
                     mainAxisSize: MainAxisSize.min,

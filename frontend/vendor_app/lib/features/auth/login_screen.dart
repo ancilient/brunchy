@@ -1,6 +1,7 @@
 // lib/features/auth/login_screen.dart
 // Phone + OTP login. The stall comes from the account on the server (one phone per stall, blueprint 5.4),
 // so there is nothing to pick here.
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,8 +22,9 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  // Pre-filled with the backend's demo Burger Hub vendor (seed data) to make development quick.
-  final _phoneCtr = TextEditingController(text: '9000000001');
+  // Starts empty so the placeholder shows; debug builds offer a one-tap demo number (seed data: Burger Hub).
+  static const _demoPhone = '9000000001';
+  final _phoneCtr = TextEditingController();
   final _codeCtr = TextEditingController();
   String? _codeSentTo;
   bool _devFilled = false;
@@ -54,79 +56,217 @@ class _LoginScreenState extends State<LoginScreen> {
       },
       child: Scaffold(
         backgroundColor: AppColors.background,
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: AppSpacing.lg),
-                  const Center(child: BrandLogo(size: 96)),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text('Welcome!', style: Theme.of(context).textTheme.displayLarge),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text('Sign in with your stall\'s phone number', style: Theme.of(context).textTheme.bodyLarge),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextFormField(
-                    controller: _phoneCtr,
-                    enabled: _codeSentTo == null,
-                    decoration: const InputDecoration(labelText: 'Stall phone number (10 digits)'),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
-                    validator: Validators.validatePhone,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  if (_codeSentTo != null) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    TextFormField(
-                      controller: _codeCtr,
-                      autofocus: !_devFilled,
-                      decoration: InputDecoration(
-                        labelText: '6-digit code sent to $_codeSentTo',
-                        helperText: _devFilled ? 'Development server: code filled in for you' : null,
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
-                      onChanged: (_) => setState(() {}),
+        body: Stack(children: [
+          // Soft teal glows behind the content.
+          Positioned(top: -120, right: -90, child: _glow(300, AppColors.brandTeal.withValues(alpha: 0.18))),
+          Positioned(bottom: -140, left: -110, child: _glow(320, AppColors.primary.withValues(alpha: 0.10))),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, box) => SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                child: ConstrainedBox(
+                  // At least the screen's height, so the content sits in the vertical middle.
+                  constraints: BoxConstraints(minHeight: box.maxHeight - AppSpacing.md * 2),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Form(key: _formKey, child: _content(context)),
                     ),
-                    TextButton(
-                      onPressed: () => setState(() {
-                        _codeSentTo = null;
-                        _codeCtr.clear();
-                        _devFilled = false;
-                      }),
-                      child: const Text('Change number'),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.xl),
-                  BlocBuilder<AuthCubit, AuthState>(
-                    builder: (context, state) {
-                      final loading = state is AuthLoading;
-                      final codeStep = _codeSentTo != null;
-                      final enabled = !loading &&
-                          (codeStep ? _codeCtr.text.trim().length == 6 : _phoneCtr.text.trim().length == 10);
-                      return SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: enabled ? (codeStep ? _verify : _sendCode) : null,
-                          child: loading
-                              ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                              : Text(codeStep ? AppStrings.startMyDay : 'Send code',
-                                  style: const TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      );
-                    },
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ]),
       ),
     );
+  }
+
+  Widget _glow(double size, Color color) => IgnorePointer(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)])),
+        ),
+      );
+
+  Widget _content(BuildContext context) {
+    final theme = Theme.of(context);
+    final codeStep = _codeSentTo != null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const BrandLogo(size: 92),
+        const SizedBox(height: AppSpacing.sm),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(AppSpacing.radiusFull)),
+          child: const Text('VENDOR', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 2.4)),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text('Welcome back!', textAlign: TextAlign.center, style: theme.textTheme.displayLarge),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          codeStep ? 'Enter the code we sent to your stall phone' : "Sign in with your stall's phone number",
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        // The form card
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: AppColors.cardWhite,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            border: Border.all(color: AppColors.divider),
+            boxShadow: [BoxShadow(color: AppColors.ink.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 10))],
+          ),
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              _steps(codeStep),
+              const SizedBox(height: AppSpacing.lg),
+              TextFormField(
+                controller: _phoneCtr,
+                enabled: !codeStep,
+                style: theme.textTheme.titleMedium?.copyWith(letterSpacing: 1.2),
+                decoration: InputDecoration(
+                  hintText: 'Stall phone number (10 digits)',
+                  hintStyle: theme.textTheme.bodyMedium?.copyWith(color: AppColors.grey500, letterSpacing: 0),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 12, right: 8),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.phone_iphone_rounded, size: 20, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Text('+91', style: theme.textTheme.titleMedium?.copyWith(color: AppColors.ink, fontWeight: FontWeight.w700)),
+                      Container(width: 1, height: 20, margin: const EdgeInsets.only(left: 10), color: AppColors.divider),
+                    ]),
+                  ),
+                  suffixIcon: codeStep ? const Icon(Icons.check_circle_rounded, color: AppColors.successGreen) : null,
+                ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
+                validator: Validators.validatePhone,
+                onChanged: (_) => setState(() {}),
+              ),
+              if (!codeStep && kDebugMode && _phoneCtr.text.isEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Center(
+                  child: ActionChip(
+                    avatar: const Icon(Icons.bolt_rounded, size: 16, color: AppColors.primary),
+                    label: const Text('Use demo stall ($_demoPhone)'),
+                    labelStyle: theme.textTheme.labelSmall?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.08),
+                    side: BorderSide.none,
+                    onPressed: () => setState(() => _phoneCtr.text = _demoPhone),
+                  ),
+                ),
+              ],
+              if (codeStep) ...[
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  controller: _codeCtr,
+                  autofocus: !_devFilled,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineMedium?.copyWith(letterSpacing: 10, color: AppColors.ink),
+                  decoration: InputDecoration(
+                    hintText: '6-digit code',
+                    hintStyle: theme.textTheme.bodyMedium?.copyWith(color: AppColors.grey500, letterSpacing: 0),
+                    helperText: _devFilled ? 'Development server: code filled in for you' : 'Sent to +91 $_codeSentTo',
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+                  onChanged: (_) => setState(() {}),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => setState(() {
+                      _codeSentTo = null;
+                      _codeCtr.clear();
+                      _devFilled = false;
+                    }),
+                    icon: const Icon(Icons.edit_rounded, size: 16),
+                    label: const Text('Change number'),
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              BlocBuilder<AuthCubit, AuthState>(
+                builder: (context, state) {
+                  final loading = state is AuthLoading;
+                  final enabled = !loading &&
+                      (codeStep ? _codeCtr.text.trim().length == 6 : _phoneCtr.text.trim().length == 10);
+                  return SizedBox(
+                    height: AppSpacing.ctaHeight,
+                    child: ElevatedButton(
+                      onPressed: enabled ? (codeStep ? _verify : _sendCode) : null,
+                      child: loading
+                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.4))
+                          : Row(mainAxisSize: MainAxisSize.min, children: [
+                              Text(codeStep ? AppStrings.startMyDay : 'Send code', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 8),
+                              Icon(codeStep ? Icons.storefront_rounded : Icons.arrow_forward_rounded, size: 18),
+                            ]),
+                    ),
+                  );
+                },
+              ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.lock_outline_rounded, size: 14, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text('Use the phone number registered for your stall', textAlign: TextAlign.center, style: theme.textTheme.labelSmall),
+          ),
+        ]),
+        const SizedBox(height: AppSpacing.xl),
+        Text.rich(
+          TextSpan(children: [
+            TextSpan(text: 'A product of ', style: theme.textTheme.labelSmall),
+            TextSpan(
+                text: 'ANCILIENT',
+                style: theme.textTheme.labelSmall?.copyWith(color: AppColors.ink, fontWeight: FontWeight.w800, letterSpacing: 2)),
+          ]),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  /// "1 Phone — 2 Verify" with the current step highlighted.
+  Widget _steps(bool codeStep) {
+    Widget dot(int n, String label, bool active, bool done) => Row(mainAxisSize: MainAxisSize.min, children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: active || done ? AppColors.primary : AppColors.grey100),
+            child: done
+                ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                : Text('$n', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: active ? Colors.white : AppColors.grey500)),
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: active || done ? AppColors.ink : AppColors.grey500)),
+        ]);
+    return Row(children: [
+      dot(1, 'Phone', !codeStep, codeStep),
+      Expanded(
+        child: Container(
+          height: 2,
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(color: codeStep ? AppColors.primary : AppColors.divider, borderRadius: BorderRadius.circular(2)),
+        ),
+      ),
+      dot(2, 'Verify', codeStep, false),
+    ]);
   }
 
   void _sendCode() {

@@ -80,9 +80,13 @@ class PeakHoursBar extends StatelessWidget {
               children: [
                 const Icon(Icons.access_time_filled, size: 20, color: AppColors.primary),
                 const SizedBox(width: AppSpacing.xs),
-                Text(
-                  'Peak Rush Hours (Today)',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    'Peak Rush Hours (Today)',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),

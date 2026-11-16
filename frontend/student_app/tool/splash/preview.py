@@ -7,11 +7,16 @@ from lottie.exporters.svg import export_svg
 
 import tempfile
 D = os.path.join(tempfile.gettempdir(), 'brunchy_splash_preview') + os.sep  # frames, sheet.png, accuracy.png
-SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'splash', 'brunchy_splash.json')
+_HERE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.environ.get('BRUNCHY_SPLASH_OUT') or (
+    os.path.join(_HERE, '..', '..', '..', 'vendor_app', 'assets', 'splash', 'brunchy_vendor_splash.json')
+    if os.environ.get('BRUNCHY_PROFILE') == 'vendor' else os.path.join(_HERE, '..', '..', 'assets', 'splash', 'brunchy_splash.json'))
 CHROME = r'C:/Program Files/Google/Chrome/Application/chrome.exe'
-frames = [int(f) for f in sys.argv[1:]] or [8, 24, 40, 52, 64, 80, 88, 96, 116, 130, 150, 179]
+frames = [int(f) for f in sys.argv[1:]]
 
 an = objects.Animation.load(json.load(open(SRC)))
+last = int(an.out_point) - 1
+frames = frames or [8, 24, 40, 52, 64, 80, 88, 96, 116, 140, 160, last]   # ends on the final frame
 os.makedirs(D + 'frames', exist_ok=True)
 print('preview ->', D)
 shots = []

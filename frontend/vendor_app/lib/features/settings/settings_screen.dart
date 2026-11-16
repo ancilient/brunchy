@@ -11,6 +11,7 @@ import '../../services/local_storage_service.dart';
 import '../../services/tts_service.dart';
 import '../auth/auth_cubit.dart';
 import '../../core/widgets/brand_logo.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -215,7 +216,7 @@ class SettingsScreen extends StatelessWidget {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppDialog(
         title: Text(hasOffline ? '⚠ Unsynced Offline Actions' : 'Log Out?'),
         content: Text(hasOffline
             ? 'You have $queueCount pending action(s) waiting to sync with the server. Logging out now will discard these actions.\n\nAre you sure you want to log out?'

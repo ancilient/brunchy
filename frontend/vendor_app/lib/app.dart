@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'core/constants/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
+import 'core/widgets/responsive_frame.dart';
 
 class BrunchyVendorApp extends StatelessWidget {
   const BrunchyVendorApp({super.key});
@@ -13,8 +13,9 @@ class BrunchyVendorApp extends StatelessWidget {
       theme: AppTheme.light,
       routerConfig: buildRouter(),
       debugShowCheckedModeBanner: false,
-      // Mint behind every page, so the cross-fade between pages never shows black.
-      builder: (context, child) => ColoredBox(color: AppColors.background, child: child),
+      // Fits every page to the device (text size, centred column on wide screens) and keeps mint behind
+      // every page, so the cross-fade between pages never shows black.
+      builder: (context, child) => ResponsiveFrame(child: child ?? const SizedBox.shrink()),
     );
   }
 }

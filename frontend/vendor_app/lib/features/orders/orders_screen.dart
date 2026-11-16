@@ -19,6 +19,8 @@ import 'orders_state.dart';
 import 'widgets/otp_entry_sheet.dart';
 import '../handover/handover_result.dart';
 import '../handover/handover_service.dart';
+import '../../core/widgets/sliding_tabs.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class OrdersScreen extends StatelessWidget {
   const OrdersScreen({super.key});
@@ -110,7 +112,7 @@ class _CapacityGateBar extends StatelessWidget {
       // Show confirmation dialog before stopping new orders
       showDialog(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppDialog(
           title: const Text('Stop New Orders?'),
           content: const Text(
             'Setting max concurrent orders to 0 will stop new incoming orders for your stall. Existing orders can still be prepared.',
@@ -401,38 +403,16 @@ class _FilterTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const filters = OrderFilter.values;
     return Container(
       color: AppColors.cardWhite,
-      child: Row(
-        children: OrderFilter.values.map((f) {
-          final active = f == loaded.activeFilter;
-          return Expanded(
-              child: GestureDetector(
-            onTap: () => context.read<OrdersCubit>().changeFilter(f),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                border: Border(
-                    bottom: BorderSide(
-                        color: active
-                            ? AppColors.primary
-                            : Colors.transparent,
-                        width: 2.5)),
-              ),
-              child: Text(
-                _tabTitle(f),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: active
-                      ? AppColors.primary
-                      : AppColors.textSecondary,
-                  fontWeight: active ? FontWeight.bold : FontWeight.w500,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ));
-        }).toList(),
+      child: SlidingTabs(
+        style: SlidingTabsStyle.underline,
+        height: 40,
+        fontSize: 13,
+        labels: [for (final f in filters) _tabTitle(f)],
+        selected: filters.indexOf(loaded.activeFilter),
+        onChanged: (i) => context.read<OrdersCubit>().changeFilter(filters[i]),
       ),
     );
   }
@@ -759,7 +739,7 @@ class _OrderCardState extends State<_OrderCard> {
         CancelReason? reason;
         var isSubmitting = false;
         return StatefulBuilder(
-            builder: (ctx, setState) => AlertDialog(
+            builder: (ctx, setState) => AppDialog(
                   title: const Text('Reject Order'),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
                     const Text('Select a reason (optional):'),

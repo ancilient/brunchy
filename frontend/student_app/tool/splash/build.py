@@ -12,11 +12,16 @@ import json
 import os
 import numpy as np
 from tracer import contours, rdp_closed, smooth_closed, area, fill_holes_smaller_than
-from parts import part_masks, full, colour_of, H, W as IMG_W, UP, m
+from parts import part_masks, full, colour_of, H, W as IMG_W, UP, m, PROFILE, label, NAMES, rgb
 
-OUT = os.environ.get('BRUNCHY_SPLASH_OUT') or     os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'splash', 'brunchy_splash.json')
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_DEFAULT_OUT = (os.path.join(_HERE, '..', '..', '..', 'vendor_app', 'assets', 'splash', 'brunchy_vendor_splash.json')
+                if os.environ.get('BRUNCHY_PROFILE') == 'vendor'
+                else os.path.join(_HERE, '..', '..', 'assets', 'splash', 'brunchy_splash.json'))
+OUT = os.environ.get('BRUNCHY_SPLASH_OUT') or _DEFAULT_OUT
 DISC_COLOUR = os.environ.get('BRUNCHY_DISC_COLOUR')   # e.g. '#14C4AE' for the vendor app; default = the logo's yellow
-FPS, OP, W = 60, 180, 1080
+FPS, W = 60, 1080
+OP = 196 if PROFILE == 'vendor' else 180   # the vendor logo has one more line ("— Vendor —") to bring in
 R = 380                                  # disc radius on the 1080 canvas
 
 P = part_masks()
@@ -183,6 +188,32 @@ COL = {
 }
 print('colours', COL)
 
+DISC_GRADIENT = None
+if PROFILE == 'vendor':
+    # Median disc colour in rings from the centre to the rim -> radial gradient stops.
+    yy, xx = np.mgrid[0:H, 0:IMG_W]
+    rr = np.hypot(xx - CX, yy - CY) / RPX
+    disc_px = label == NAMES.index('disc')
+    stops = []
+    for t in (0.0, 0.35, 0.6, 0.8, 0.93, 1.0):
+        ring = disc_px & (np.abs(rr - t) < 0.06)
+        if ring.sum() > 50:
+            c = np.median(rgb[ring], 0) / 255
+            stops += [t, *[round(float(v), 4) for v in c]]
+    DISC_GRADIENT = stops
+    COL['cheese'] = colour_of(full(P['cheese']))
+    COL['smile'] = colour_of(full(P['smile']))
+    COL['gloss'] = colour_of(full(P['gloss'])) if P['gloss'] else None
+    print('disc gradient stops', len(stops) // 4)
+
+
+def disc_fill():
+    """The disc's paint: the logo's radial gradient (vendor) or its flat colour (student)."""
+    if DISC_GRADIENT is None:
+        return {'ty': 'fl', 'c': static(rgba(COL['disc'])), 'o': static(100), 'r': 1}
+    return {'ty': 'gf', 'o': static(100), 'r': 1, 't': 2, 's': static([0, 0]), 'e': static([R, 0]),
+            'h': static(0), 'a': static(0), 'g': {'p': len(DISC_GRADIENT) // 4, 'k': static(DISC_GRADIENT)}}
+
 # Null rigs: logo at canvas centre; burger pivots at the base of the bottom bun for squash and tilt.
 logo = layer('logo-rig', None, ks(p=(540, 540)), ty=3)
 bb_m, _, bby0, _ = P['bottom_bun']
@@ -219,7 +250,7 @@ for i, (bx, by, br) in enumerate(bites):
     f0 = 84 + i * 3
     bite_shapes.append({'ty': 'gr', 'nm': f'bite{i + 1}', 'it': [
         {'ty': 'el', 'p': static(c), 's': static([d, d])},
-        {'ty': 'fl', 'c': static(rgba(COL['disc'])), 'o': static(100), 'r': 1},
+        disc_fill(),
         {'ty': 'tr', 'p': static(c), 'a': static(c), 's': anim([(0, [0, 0]), (f0, [0, 0]), (f0 + 5, [108, 108]), (f0 + 9, [100, 100])]),
          'r': static(0), 'o': static(100), 'sk': static(0), 'sa': static(0)},
     ]})
@@ -261,17 +292,48 @@ for i, lc in enumerate(P['letters']):
 
 disc = ('disc', [{'ty': 'gr', 'nm': 'disc', 'it': [
     {'ty': 'el', 'p': static([0, 0]), 's': static([2 * R, 2 * R])},
-    {'ty': 'fl', 'c': static(rgba(COL['disc'])), 'o': static(100), 'r': 1}, TR0(),
+    disc_fill(), TR0(),
 ]}], ks(s=anim([(0, [0, 0]), (18, [106, 106]), (26, [100, 100])]), o=anim([(0, 0), (8, 100)], 'lin')), logo)
 
 ripple = ('ripple', [{'ty': 'gr', 'nm': 'ring', 'it': [
     {'ty': 'el', 'p': static([0, 0]), 's': anim([(0, [2 * R, 2 * R]), (84, [2 * R, 2 * R]), (124, [2 * R + 260, 2 * R + 260])])},
-    {'ty': 'st', 'c': static(rgba(COL['disc'])), 'o': anim([(0, 0), (84, 0), (86, 90), (124, 0)], 'out'),
+    {'ty': 'st', 'c': static(rgba(COL['disc'] if DISC_GRADIENT is None else '#2BE8DB')), 'o': anim([(0, 0), (84, 0), (86, 90), (124, 0)], 'out'),
      'w': anim([(84, 18), (124, 3)]), 'lc': 2, 'lj': 2}, TR0(),
 ]}], ks(), logo)
 
+extra = {}
+if PROFILE == 'vendor':
+    # Cheese drops in between the patty and the top bun.
+    drop_layer('cheese', trace_mask(*P['cheese'][:3]), COL['cheese'], 26, 290, burger)
+    # The smile widens once the seeds are in.
+    sm = P['smile']; mk, x0, y0, _ = sm
+    scx, scy = L(x0 + mk.shape[1] / 2, y0 + mk.shape[0] / 2)
+    extra['smile'] = ('smile', [group(path_items(trace_mask(*sm[:3])), COL['smile'], 1)],
+                      ks(p=(scx, scy), a=(scx, scy), s=anim([(0, [0, 100]), (66, [0, 100]), (74, [112, 100]), (80, [100, 100])])), burger)
+    # The disc's shine fades in with the disc.
+    if P['gloss']:
+        extra['gloss'] = ('gloss', [group(path_items(trace_mask(*P['gloss'][:3])), COL['gloss'], 1)],
+                          ks(o=anim([(0, 0), (16, 0), (30, 100)], 'lin')), logo)
+    # "— Vendor —" rises in after "Brunchy"; the dashes grow out from the word.
+    subs = []
+    for i, sc in enumerate(P['sub_letters']):
+        mk, x0, y0, _ = sc
+        cx, cy = L(x0 + mk.shape[1] / 2, y0 + mk.shape[0] / 2)
+        dash = mk.shape[1] > mk.shape[0] * 3
+        f0 = 150 + (0 if dash else i * 2)
+        s_keys = anim([(0, [0, 100]), (f0, [0, 100]), (f0 + 12, [100, 100])]) if dash else \
+            anim([(0, [70, 70]), (f0, [70, 70]), (f0 + 10, [104, 104]), (f0 + 14, [100, 100])])
+        subs.append((f'vendor-{i + 1}', [group(path_items(trace_mask(*sc[:3])), COL['text'], 2)],
+                     ks(p=anim([(0, [cx, cy + 20]), (f0, [cx, cy + 20]), (f0 + 12, [cx, cy])]), a=(cx, cy), s=s_keys,
+                        o=anim([(0, 0), (f0, 0), (f0 + 8, 100)], 'lin')), logo))
+    extra['subs'] = subs
+
 # Lottie draws the first layer on top. (The two rigs are null layers: they never draw.)
-order = letters + [parts[k] for k in ['crumbs', 'patty', 'bottom-bun', 'seed3', 'seed2', 'seed1', 'bites', 'top-bun']] + [disc, ripple]
+burger_order = ['crumbs', 'patty', 'bottom-bun', 'seed3', 'seed2', 'seed1', 'bites', 'top-bun']
+if PROFILE == 'vendor':
+    burger_order = ['crumbs', 'cheese', 'patty', 'bottom-bun', 'seed3', 'seed2', 'seed1', 'bites', 'top-bun']
+order = extra.get('subs', []) + letters + ([extra['smile']] if 'smile' in extra else []) + [parts[k] for k in burger_order] \
+    + ([extra['gloss']] if 'gloss' in extra else []) + [disc, ripple]
 for nm, shapes, t, parent in order:
     layer(nm, shapes, t, parent)
 

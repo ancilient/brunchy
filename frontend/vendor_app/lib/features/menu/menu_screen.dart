@@ -13,6 +13,7 @@ import 'menu_cubit.dart';
 import 'menu_state.dart';
 import 'widgets/add_edit_item_sheet.dart';
 import 'widgets/menu_item_tile.dart';
+import '../../core/widgets/rolling_number.dart';
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
@@ -26,6 +27,9 @@ class MenuScreen extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.cardWhite,
+      // Header and buttons stay put; the form in between scrolls on short screens.
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.92),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusLg)),
       ),
@@ -40,8 +44,9 @@ class MenuScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Item', style: TextStyle(fontWeight: FontWeight.bold)),
+        extendedPadding: const EdgeInsets.symmetric(horizontal: 16),
+        icon: const Icon(Icons.add, size: 20),
+        label: const Text('Add Item', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold)),
         onPressed: () => _openAddEditSheet(context),
       ),
       body: BlocConsumer<MenuCubit, MenuState>(
@@ -137,34 +142,21 @@ class MenuScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 80, top: AppSpacing.sm),
               children: [
-                // Summary Bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-                  child: Row(
-                    children: [
-                      _buildCountBadge('Total', '$total', AppColors.grey700, AppColors.grey100),
-                      const SizedBox(width: AppSpacing.sm),
-                      _buildCountBadge('Available', '$available', AppColors.brandTeal, AppColors.brandTeal.withValues(alpha: 0.12)),
-                      const SizedBox(width: AppSpacing.sm),
-                      _buildCountBadge('Sold Out', '$soldOut', AppColors.errorRed, AppColors.errorRed.withValues(alpha: 0.12)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
+                _buildOverview(total, available, soldOut),
                 ...grouped.entries.map((entry) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
-                        child: Text(
-                          entry.key.toUpperCase(),
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: AppColors.grey600,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.1,
-                              ),
-                        ),
+                        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 4),
+                        child: Row(children: [
+                          Text(
+                            entry.key.toUpperCase(),
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w800, letterSpacing: 1),
+                          ),
+                          const SizedBox(width: 6),
+                          Text('${entry.value.length}', style: const TextStyle(fontSize: 11, color: AppColors.grey500, fontWeight: FontWeight.w600)),
+                        ]),
                       ),
                       ...entry.value.map((item) {
                         return MenuItemTile(
@@ -195,21 +187,60 @@ class MenuScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCountBadge(String label, String value, Color textColor, Color bgColor) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: AppSpacing.xs),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-        ),
-        child: Column(
-          children: [
-            Text(value, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
-            Text(label, style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 11)),
-          ],
-        ),
+  /// One compact card: the item count on the left, an availability bar with a legend on the right.
+  Widget _buildOverview(int total, int available, int soldOut) {
+    final share = total == 0 ? 0.0 : available / total;
+    const valueStyle = TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary);
+    Widget legend(Color color, String label, int count, [String? extra]) => Row(children: [
+          Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 5),
+          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          const Spacer(),
+          RollingNumber(count, style: valueStyle),
+          if (extra != null) Text(extra, style: valueStyle),
+        ]);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xs, AppSpacing.md, 0),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.divider),
       ),
+      child: Row(children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+          child: const Icon(Icons.restaurant_menu_rounded, size: 20, color: AppColors.primary),
+        ),
+        const SizedBox(width: 10),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          RollingNumber(total, style: const TextStyle(fontSize: 20, height: 1.1, fontWeight: FontWeight.w800, color: AppColors.ink)),
+          const Text('items on the menu', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+        ]),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // available (teal) vs sold out (red), in proportion
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: SizedBox(
+                height: 6,
+                child: Row(children: [
+                  if (available > 0) Expanded(flex: available, child: Container(color: AppColors.brandTeal)),
+                  if (available > 0 && soldOut > 0) const SizedBox(width: 2),
+                  if (soldOut > 0) Expanded(flex: soldOut, child: Container(color: AppColors.errorRed)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 8),
+            legend(AppColors.brandTeal, 'Available', available, '  ·  ${(share * 100).round()}%'),
+            const SizedBox(height: 3),
+            legend(AppColors.errorRed, 'Sold out', soldOut),
+          ]),
+        ),
+      ]),
     );
   }
 

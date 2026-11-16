@@ -107,6 +107,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       backgroundColor: AppColors.background,
       body: Stack(children: [
         Center(
+          // The vendor badge animation already spells out "— Vendor —".
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Lottie.asset(
               'assets/splash/brunchy_vendor_splash.json',
@@ -118,16 +119,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 _finish(const Duration(milliseconds: 600));
                 return const SizedBox.shrink();
               },
-            ),
-            // "VENDOR" tag just under the disc (the canvas has empty space below the disc).
-            Transform.translate(
-              offset: Offset(0, -logo * 0.1),
-              child: _rise(Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(99)),
-                child: Text('VENDOR',
-                    style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 3, color: Colors.white)),
-              )),
             ),
           ]),
         ),

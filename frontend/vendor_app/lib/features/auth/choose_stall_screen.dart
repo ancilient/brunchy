@@ -12,6 +12,7 @@ import '../../data/models/stall.dart';
 import 'choose_stall_cubit.dart';
 import 'choose_stall_state.dart';
 import '../../core/widgets/brand_logo.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class ChooseStallScreen extends StatefulWidget {
   const ChooseStallScreen({super.key});
@@ -137,7 +138,7 @@ class _ChooseStallScreenState extends State<ChooseStallScreen> {
   void _showConflictDialog(BuildContext context, StallClaimConflict state) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => AppDialog(
         title: const Text('Stall Already Open'),
         content: Text('This stall is open on another device (${state.claimedBy}). Take over?'),
         actions: [

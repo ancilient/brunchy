@@ -14,6 +14,7 @@ import 'screens/splash_header.dart';
 import 'state/app_scope.dart';
 import 'state/app_state.dart';
 import 'ui/icons.dart';
+import 'ui/responsive_frame.dart';
 import 'ui/theme.dart';
 
 Future<void> main() async {
@@ -35,6 +36,8 @@ class BrunchyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: C.brand, primary: C.brand, surface: Colors.white),
         textSelectionTheme: const TextSelectionThemeData(cursorColor: C.brand),
       ),
+      // Fits every page to the device: text size for the phone's width, centred column on tablets / desktop.
+      builder: (context, child) => ResponsiveFrame(child: child ?? const SizedBox.shrink()),
       home: const AnnotatedRegion<SystemUiOverlayStyle>(
         // dark status-bar icons on the light cream background
         value: SystemUiOverlayStyle(
