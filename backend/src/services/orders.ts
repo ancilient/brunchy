@@ -1,3 +1,4 @@
+import { config } from '../config.js';
 import { type Db, rows } from '../db/pool.js';
 import { iso } from '../util.js';
 
@@ -118,6 +119,7 @@ interface OrderRow {
   subtotal: number;
   tax: number;
   convenience_fee: number;
+  additional_fee: number;
   total: number;
   status: string;
   gateway_order_ref: string | null;
@@ -145,6 +147,9 @@ export async function loadOrders(db: Db, where: string, params: unknown[], limit
     subtotal: o.subtotal,
     tax: o.tax,
     convenienceFee: o.convenience_fee,
+    /** Computed platform fee for this order (₹), from PLATFORM_FEE_PERCENT of item subtotal. */
+    additionalFee: o.additional_fee,
+    platformFeePercent: config.PLATFORM_FEE_PERCENT,
     total: o.total,
     gatewayOrderRef: o.gateway_order_ref,
     paymentExpiresAt: iso(o.payment_expires_at),

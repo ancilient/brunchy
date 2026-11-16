@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import { mockGateway } from './mockGateway.js';
+import { razorpayGateway } from './razorpayGateway.js';
 
 /** A payment event the gateway reports through its webhook, after the signature was verified. */
 export interface PaymentEvent {
@@ -12,8 +13,8 @@ export interface PaymentEvent {
 }
 
 /**
- * Everything the backend needs from a payment gateway. The mock implements it now;
- * a Razorpay implementation (orders API + webhook signature) plugs in later without touching checkout.
+ * Everything the backend needs from a payment gateway. Mock and Razorpay both implement this;
+ * checkout / bills stay the same either way.
  */
 export interface PaymentGateway {
   name: string;
@@ -25,4 +26,6 @@ export interface PaymentGateway {
   parseWebhook(rawBody: Buffer): PaymentEvent | null;
 }
 
-export const gateway: PaymentGateway = { mock: mockGateway }[config.PAYMENT_GATEWAY];
+const gateways = { mock: mockGateway, razorpay: razorpayGateway } as const;
+
+export const gateway: PaymentGateway = gateways[config.PAYMENT_GATEWAY];

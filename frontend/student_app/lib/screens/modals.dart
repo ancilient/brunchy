@@ -1,6 +1,7 @@
 // PayModal.tsx, CheckoutShortageModal.tsx, CanteenSelectorModal.tsx, CustomerCareModal.tsx
 import 'package:flutter/material.dart';
 
+import '../api/api_client.dart';
 import '../state/app_scope.dart';
 import '../state/app_state.dart';
 import '../ui/icons.dart';
@@ -55,25 +56,22 @@ class PaySheet extends StatefulWidget {
 
 class PaySheetState extends State<PaySheet> {
   bool _verifying = false;
-  bool _showQr = false;
 
-  /// Android back: never interrupt a payment check; QR view goes back to app list; otherwise cancel the hold.
+  /// Android back: never interrupt a payment check; otherwise cancel the hold.
   bool handleBack() {
     if (_verifying) return true;
-    if (_showQr) {
-      setState(() => _showQr = false);
-      return true;
-    }
     AppScope.read(context).cancelCheckoutHold();
     widget.onClose();
     return true;
   }
 
-  Future<void> _pay(String method) async {
+  Future<void> _payWithRazorpay() async {
     setState(() => _verifying = true);
     try {
-      final id = await AppScope.read(context).completeUpiPayment(method);
+      final id = await AppScope.read(context).completeRazorpayPayment();
       if (id != null) widget.onPaymentSuccess(id);
+    } on ApiException catch (e) {
+      if (mounted) showAlert(context, e.message);
     } catch (_) {
       if (mounted) showAlert(context, 'Payment could not be verified. Please retry.');
     } finally {
@@ -86,12 +84,8 @@ class PaySheetState extends State<PaySheet> {
     final s = AppScope.of(context);
     final order = s.activePendingOrder;
     if (order == null) return const SizedBox.shrink();
-    const apps = [
-      ['Google Pay', '⚡', 0xFFEFF6FF, 0xFFBFDBFE],
-      ['PhonePe', '🟣', 0xFFFAF5FF, 0xFFE9D5FF],
-      ['Paytm', '🔷', 0xFFF0F9FF, 0xFFBAE6FD],
-      ['BHIM UPI', '🇮🇳', 0xFFECFDF5, 0xFFA7F3D0],
-    ];
+    final mins = (s.holdSecondsLeft / 60).floor();
+    final secs = (s.holdSecondsLeft % 60).toString().padLeft(2, '0');
     return Backdrop(
       bottomSheet: true,
       child: _sheet(
@@ -123,91 +117,44 @@ class PaySheetState extends State<PaySheet> {
               child: Column(children: [
                 const SizedBox(width: 48, height: 48, child: CircularProgressIndicator(color: C.brand, strokeWidth: 4)),
                 const SizedBox(height: 16),
-                txt('Checking payment with bank...', 16, w: w7, align: TextAlign.center),
+                txt('Opening Razorpay…', 16, w: w7, align: TextAlign.center),
                 const SizedBox(height: 4),
-                txt('Please do not hit back or close the app. Never charged twice.', 12, color: C.slate500, align: TextAlign.center),
-              ]),
-            )
-          else if (_showQr)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: C.slate50, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.amber300, width: 2)),
-                  child: const LIcon('QrCode', size: 192, color: C.slate900),
-                ),
-                const SizedBox(height: 16),
-                txt('Scan with any UPI app to pay ₹${fmtNum(order.total)}', 12, w: w5, color: C.slate600),
-                const SizedBox(height: 16),
-                GradientButton(onTap: () => _pay('QR Code'), padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: txt('Simulate Successful QR Payment', 12, w: w7, color: Colors.white)),
-                const SizedBox(height: 16),
-                Tap(onTap: () => setState(() => _showQr = false), child: txt('← Back to UPI App Selection', 12, color: C.slate400)),
+                txt('Complete payment in the Razorpay window. Never charged twice.', 12, color: C.slate500, align: TextAlign.center),
               ]),
             )
           else ...[
-            Tap(
-              onTap: () => setState(() => _showQr = true),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: C.a(C.orange50, 0.4), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.a(C.amber200, 0.8))),
-                child: Row(children: [
-                  Container(width: 40, height: 40,
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: C.amber200)),
-                      child: const Center(child: LIcon('QrCode', size: 20, color: C.brand))),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      txt('Show Payment QR Code', 12, w: w7),
-                      txt('Scan with any college or banking scanner', 10, color: C.slate500),
-                    ]),
-                  ),
-                  const LIcon('ArrowRight', size: 16, color: C.brand),
-                ]),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: C.slate50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: C.slate100),
               ),
-            ),
-            const SizedBox(height: 24),
-            Center(child: txt('OR TAP YOUR UPI APP', 11, w: w6, color: C.slate400)),
-            const SizedBox(height: 16),
-            for (var r = 0; r < 2; r++) ...[
-              if (r > 0) const SizedBox(height: 10),
-              Row(children: [
-                for (var c = 0; c < 2; c++) ...[
-                  if (c > 0) const SizedBox(width: 10),
-                  Expanded(child: _appButton(apps[r * 2 + c])),
-                ],
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                txt('Pay securely with Razorpay', 14, w: w7),
+                const SizedBox(height: 6),
+                txt('UPI, cards, and netbanking — test mode keys (no real money).', 12, color: C.slate500),
+                const SizedBox(height: 10),
+                txt('Hold expires in $mins:$secs', 11, w: w6, color: C.brand),
               ]),
-            ],
-            const SizedBox(height: 24),
+            ),
+            const SizedBox(height: 20),
+            GradientButton(
+              onTap: _payWithRazorpay,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: txt('Pay ₹${fmtNum(order.total)} with Razorpay', 14, w: w7, color: Colors.white, align: TextAlign.center),
+            ),
+            const SizedBox(height: 16),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               const LIcon('ShieldCheck', size: 14, color: C.emerald600),
               const SizedBox(width: 6),
-              Flexible(child: txt('100% Secure Campus Gateway · Instant refund if stall rejects', 11, color: C.slate400, align: TextAlign.center)),
+              Flexible(child: txt('Razorpay Checkout · Instant refund if stall rejects', 11, color: C.slate400, align: TextAlign.center)),
             ]),
           ],
         ]),
       ),
     );
   }
-
-  Widget _appButton(List<Object> a) => Tap(
-        onTap: () => _pay(a[0] as String),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Color(a[2] as int), borderRadius: BorderRadius.circular(16), border: Border.all(color: Color(a[3] as int))),
-          child: Row(children: [
-            Text(a[1] as String, style: const TextStyle(fontSize: 20)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                txt(a[0] as String, 12, w: w7, maxLines: 1),
-                txt('Instant pay', 9, color: C.slate500),
-              ]),
-            ),
-          ]),
-        ),
-      );
 }
 
 // ======================= Stock shortage =======================

@@ -3,10 +3,11 @@ import express, { Router } from 'express';
 import { z } from 'zod';
 import { config, isProduction } from '../config.js';
 import { one, pool } from '../db/pool.js';
-import { badRequest, conflict, notFound } from '../errors.js';
+import { AppError, badRequest, conflict, notFound } from '../errors.js';
 import { currentUser, requireAuth, requireRole } from '../middleware/auth.js';
 import { MOCK_SIGNATURE_HEADER, signMockBody } from '../payments/mockGateway.js';
-import { handleWebhook } from '../services/payments.js';
+import { verifyCheckoutSignature } from '../payments/razorpayGateway.js';
+import { applyVerifiedPayment, handleWebhook } from '../services/payments.js';
 import { parseId, toPaise } from '../util.js';
 
 export const paymentsRouter = Router();
@@ -15,6 +16,47 @@ export const paymentsRouter = Router();
 paymentsRouter.post('/payments/webhook', express.raw({ type: '*/*', limit: '100kb' }), async (req, res) => {
   const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
   res.json(await handleWebhook(raw, req.headers));
+});
+
+/**
+ * After Razorpay Checkout succeeds on the phone/browser: verify order_id|payment_id signature with the
+ * key secret, then mark the order paid (same path as the webhook). Needed for local test without a public URL.
+ */
+paymentsRouter.post('/payments/razorpay/confirm', express.json(), requireAuth, requireRole('student'), async (req, res) => {
+  if (config.PAYMENT_GATEWAY !== 'razorpay') {
+    throw badRequest('GATEWAY_MISMATCH', 'Server is not using the Razorpay gateway');
+  }
+  const body = z
+    .object({
+      orderId: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]),
+      razorpayOrderId: z.string().min(1),
+      razorpayPaymentId: z.string().min(1),
+      razorpaySignature: z.string().min(1),
+    })
+    .parse(req.body ?? {});
+  const orderId = typeof body.orderId === 'number' ? body.orderId : parseId(body.orderId);
+  if (!orderId) throw badRequest('INVALID_ID', 'Invalid order id');
+
+  if (!verifyCheckoutSignature(body.razorpayOrderId, body.razorpayPaymentId, body.razorpaySignature)) {
+    throw new AppError(401, 'INVALID_SIGNATURE', 'Razorpay payment signature is not valid');
+  }
+
+  const order = await one(pool, 'SELECT * FROM orders WHERE order_id = ? AND user_id = ?', [orderId, currentUser(req).id]);
+  if (!order) throw notFound('ORDER_NOT_FOUND', 'Order not found');
+  if (!order.gateway_order_ref) throw conflict('NO_PAYMENT_ORDER', 'Confirm the shortage prompt before paying');
+  if (order.gateway_order_ref !== body.razorpayOrderId) {
+    throw conflict('ORDER_MISMATCH', 'This Razorpay order does not match the Brunchy order');
+  }
+
+  res.json(
+    await applyVerifiedPayment({
+      type: 'payment.captured',
+      gatewayOrderRef: body.razorpayOrderId,
+      gatewayPaymentRef: body.razorpayPaymentId,
+      amountPaise: toPaise(order.total as number),
+      upiApp: 'razorpay',
+    }),
+  );
 });
 
 /**

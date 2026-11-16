@@ -159,16 +159,7 @@ async function applyEvent(ev: PaymentEvent): Promise<Outcome> {
   });
 }
 
-/**
- * Handles a payment gateway webhook. This is the ONLY place an order becomes paid (build guide part 5).
- * Signature checked first; replays of the same notification are harmless.
- */
-export async function handleWebhook(rawBody: Buffer, headers: Record<string, string | string[] | undefined>) {
-  if (!gateway.verifyWebhook(rawBody, headers)) throw new AppError(401, 'INVALID_SIGNATURE', 'Webhook signature is not valid');
-  const ev = gateway.parseWebhook(rawBody);
-  if (!ev) return { received: true, result: 'ignored' };
-  const outcome = await applyEvent(ev);
-  logger.info({ outcome, gatewayOrderRef: ev.gatewayOrderRef }, 'payment webhook');
+async function publishOutcome(outcome: Outcome) {
   if (outcome.kind === 'paid') {
     await bustMenuCache([outcome.canteenId]);
     await publishBills(outcome.billIds, 'bill.new');
@@ -176,5 +167,25 @@ export async function handleWebhook(rawBody: Buffer, headers: Record<string, str
   } else if (outcome.kind === 'refund') {
     await publishOrder(outcome.orderId);
   }
+}
+
+/**
+ * Applies a verified payment event (webhook or Razorpay checkout confirm).
+ * Replays of the same payment notification are harmless.
+ */
+export async function applyVerifiedPayment(ev: PaymentEvent) {
+  const outcome = await applyEvent(ev);
+  logger.info({ outcome, gatewayOrderRef: ev.gatewayOrderRef }, 'payment event');
+  await publishOutcome(outcome);
   return { received: true, result: outcome.kind };
+}
+
+/**
+ * Handles a payment gateway webhook. Signature checked first; then the same apply path as checkout confirm.
+ */
+export async function handleWebhook(rawBody: Buffer, headers: Record<string, string | string[] | undefined>) {
+  if (!gateway.verifyWebhook(rawBody, headers)) throw new AppError(401, 'INVALID_SIGNATURE', 'Webhook signature is not valid');
+  const ev = gateway.parseWebhook(rawBody);
+  if (!ev) return { received: true, result: 'ignored' };
+  return applyVerifiedPayment(ev);
 }

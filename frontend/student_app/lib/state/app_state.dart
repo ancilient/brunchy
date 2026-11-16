@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/mappers.dart';
 import '../api/realtime.dart';
+import '../payments/razorpay_checkout.dart';
 import 'menu_data.dart';
 import 'models.dart';
 
@@ -43,13 +44,17 @@ class AppState extends ChangeNotifier {
   String pickupSlot = 'now';
   int selectedCanteenId = 1;
   int demoClockMultiplier = 1; // kept for the header's demo control; timers now follow the server clock
-  double convenienceFee = 5; // the server decides; updated from each order
+  double convenienceFee = 0; // unused in totals; kept for API compatibility
+  /// Platform fee % of item total only. Synced from server after checkout.
+  double platformFeePercent = 2.36;
 
   /// True when the last menu refresh failed and the menu shown may be out of date.
   bool menuOffline = false;
 
   List<StockShortage> stockShortages = [];
   Order? activePendingOrder;
+  /// Checkout `payment` payload from the server (Razorpay key + order id, or mock).
+  Map<String, dynamic>? pendingPayment;
   int holdSecondsLeft = 300;
   bool isHoldActive = false;
   int holdExpiredCount = 0;
@@ -406,6 +411,7 @@ class AppState extends ChangeNotifier {
 
       final order = orderFromApi(r['order'] as Map<String, dynamic>, pickupSlot: pickupSlot);
       convenienceFee = order.convenienceFee;
+      if (order.platformFeePercent > 0) platformFeePercent = order.platformFeePercent;
       if (order.status == 'cancelled') {
         cart = [];
         _changed();
@@ -434,6 +440,7 @@ class AppState extends ChangeNotifier {
 
   void _startHold(Order order, Map<String, dynamic>? payment) {
     activePendingOrder = order;
+    pendingPayment = payment;
     final expires = payment?['expiresAt'] as String?;
     _holdExpiresAt = expires == null ? api.serverNow().add(const Duration(minutes: 5)) : DateTime.parse(expires);
     isHoldActive = true;
@@ -453,6 +460,7 @@ class AppState extends ChangeNotifier {
       holdExpiredCount++;
       activePendingOrder?.status = 'expired';
       activePendingOrder = null;
+      pendingPayment = null;
       _changed();
       unawaited(refreshMenu());
     } else {
@@ -501,6 +509,7 @@ class AppState extends ChangeNotifier {
     }
     _stopHold();
     activePendingOrder = null;
+    pendingPayment = null;
     _changed();
   }
 
@@ -513,17 +522,58 @@ class AppState extends ChangeNotifier {
     unawaited(refreshMenu());
   }
 
-  /// Pays with the backend's mock gateway (development: no money moves).
-  /// TODO(Razorpay milestone): open the Razorpay checkout here; the server confirms through its webhook.
-  Future<int?> completeUpiPayment(String method) async {
+  /// Opens Razorpay Checkout (test or live). Server confirms via signature check (no public webhook needed).
+  Future<int?> completeRazorpayPayment() async {
     final pending = activePendingOrder;
-    if (pending == null) return null;
-    final upiApp = method.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
-    final r = await api.post('/payments/mock/${pending.orderId}/pay', {'upiApp': upiApp});
+    final payment = pendingPayment;
+    if (pending == null || payment == null) return null;
+
+    final gateway = payment['gateway'] as String? ?? 'mock';
+    if (gateway == 'mock') {
+      return _finishPaid(pending, await api.post('/payments/mock/${pending.orderId}/pay', {'upiApp': 'razorpay'}));
+    }
+
+    final keyId = payment['keyId'] as String?;
+    final gatewayOrderRef = payment['gatewayOrderRef'] as String?;
+    final amountPaise = (payment['amountPaise'] as num?)?.toInt();
+    if (keyId == null || gatewayOrderRef == null || amountPaise == null) {
+      throw ApiException(500, 'PAYMENT_CONFIG', 'Payment details missing from checkout. Please try again.');
+    }
+
+    final checkout = await openRazorpayCheckout({
+      'key': keyId,
+      'amount': amountPaise,
+      'currency': payment['currency'] ?? 'INR',
+      'name': payment['name'] ?? 'Brunchy',
+      'description': payment['description'] ?? 'Order #${pending.orderId}',
+      'order_id': gatewayOrderRef,
+      'prefill': {
+        if (currentUser.phone.isNotEmpty) 'contact': currentUser.phone,
+        if (currentUser.name.isNotEmpty) 'name': currentUser.name,
+      },
+      'theme': {'color': '#E63E11'},
+    });
+
+    if (!checkout.isSuccessful) {
+      if (checkout.errorCode == 'MODAL_DISMISSED') return null;
+      throw ApiException(402, checkout.errorCode ?? 'PAYMENT_FAILED', checkout.errorDescription ?? 'Payment failed');
+    }
+
+    final r = await api.post('/payments/razorpay/confirm', {
+      'orderId': pending.orderId,
+      'razorpayOrderId': checkout.orderId,
+      'razorpayPaymentId': checkout.paymentId,
+      'razorpaySignature': checkout.signature,
+    });
+    return _finishPaid(pending, r);
+  }
+
+  Future<int?> _finishPaid(Order pending, Map<String, dynamic> r) async {
     if (r['result'] != 'paid' && r['result'] != 'replay') {
       throw ApiException(402, 'PAYMENT_NOT_COMPLETED', 'Payment was not completed. Please try again.');
     }
     if (activePendingOrder == pending) activePendingOrder = null;
+    pendingPayment = null;
     _stopHold();
     cart = [];
     _changed();

@@ -463,6 +463,8 @@ components:
         subtotal: { type: number }
         tax: { type: number }
         convenienceFee: { type: number }
+        additionalFee: { type: number, description: 'Platform fee in ₹ (PLATFORM_FEE_PERCENT of item total)' }
+        platformFeePercent: { type: number, description: 'Percent used to compute additionalFee' }
         total: { type: number }
         gatewayOrderRef: { type: string, nullable: true }
         paymentExpiresAt: { type: string, format: date-time }

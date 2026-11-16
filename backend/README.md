@@ -2,7 +2,7 @@
 
 The brain and the referee: it decides what is paid, what is in stock, what each pickup code is worth, and when to refund.
 The apps only display what this server says.
-TEST MY BRANCH 
+
 
 **Status: milestone 1 done** — the full ordering loop works end to end with a mock payment gateway:
 OTP login → canteens and today's menu → checkout with a 5-minute stock hold → payment webhook → one bill per stall with a
@@ -76,11 +76,18 @@ tests/               launch-gate tests: stock race, webhook replay, handover rul
 
 ## Changes from the blueprint (agreed in the team)
 - **3-digit pickup code instead of a QR** (OTP Workflow Team Guide; both apps already use it). The QR columns are not created.
-- **Convenience fee** is a flat setting (`CONVENIENCE_FEE`, default ₹5) because the documents disagree (₹5 vs 10%).
+- **No separate convenience fee or stall GST** on what the student pays.
+- **Platform fee** (`PLATFORM_FEE_PERCENT`, default 2.36%) is charged on item total only and covers platform fee + GST.
 - **Close for today** blocks new orders; paid bills already on the board continue. Auto-cancel + refund of unstarted bills
   comes with the refunds milestone.
 
+## Payments (Razorpay test mode)
+Set `PAYMENT_GATEWAY=razorpay` plus `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` in `backend/.env` (test keys from the
+Razorpay dashboard). Checkout creates a Razorpay order; the student app opens Checkout; the app then calls
+`POST /payments/razorpay/confirm` with the signed response so local/dev works **without** a public webhook URL.
+`RAZORPAY_WEBHOOK_SECRET` is only needed when you expose `/api/v1/payments/webhook` (ngrok or deployed API).
+
 ## Not built yet (next milestones)
-Razorpay adapter and real refunds · SMS provider for OTP · FCM push notifications · emergency stop with refunds ·
+Real refunds via Razorpay · SMS provider for OTP · FCM push notifications · emergency stop with refunds ·
 manager approvals, price-change requests, daily-menu admin · search and pickup slots · reports and vendor dashboard ·
-admin web · connecting the Flutter apps (replace their mock repositories with calls to this API).
+admin web.

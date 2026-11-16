@@ -21,13 +21,14 @@ class CartScreen extends StatelessWidget {
       final p = s.productById(l.productId);
       if (p != null) groups.putIfAbsent(p.stallId, () => []).add(l);
     }
-    double subtotal = 0, tax = 0;
+    double subtotal = 0;
     groups.forEach((stallId, lines) {
       final sub = lines.fold<double>(0, (a, l) => a + s.productById(l.productId)!.price * l.quantity);
       subtotal += sub;
-      tax += sub * (s.stallById(stallId)?.gstRate ?? 0) / 100;
     });
-    final grandTotal = subtotal + tax + s.convenienceFee;
+    // Same as backend: only item total + platform fee % (no stall GST / convenience fee).
+    final platformFee = subtotal * s.platformFeePercent / 100;
+    final grandTotal = subtotal + platformFee;
 
     Future<void> checkout() async {
       final res = await s.startCheckout();
@@ -131,10 +132,13 @@ class CartScreen extends StatelessWidget {
                 decoration: card(),
                 child: Column(children: [
                   _row(txt('Item Total', 12, color: C.slate600), txt('₹${fmtNum(subtotal)}', 12, w: w5, font: F.mono)),
-                  if (tax > 0) ...[const SizedBox(height: 8), _row(txt('GST Tax', 12, color: C.slate600), txt('₹${tax.toStringAsFixed(2)}', 12, w: w5, font: F.mono))],
-                  const SizedBox(height: 8),
-                  _row(Row(children: [txt('Convenience Fee', 12, w: w5, color: C.brand), const SizedBox(width: 4), const LIcon('Info', size: 12, color: C.slate400)]),
-                      txt('₹${fmtNum(s.convenienceFee)}', 12, w: w5, font: F.mono, color: C.brand)),
+                  if (platformFee > 0) ...[
+                    const SizedBox(height: 8),
+                    _row(
+                      txt('Platform fee (${s.platformFeePercent}%)', 12, color: C.slate600),
+                      txt('₹${platformFee.toStringAsFixed(2)}', 12, w: w5, font: F.mono),
+                    ),
+                  ],
                   Container(
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.only(top: 8),

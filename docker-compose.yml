@@ -15,7 +15,8 @@ services:
     # All DATETIME values are stored in UTC (blueprint 10.1).
     command: ["--default-time-zone=+00:00", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
     ports:
-      - "3306:3306"
+      # Host 3306 is often taken by a local MySQL install; map to 3307 instead.
+      - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
       - ./database/docker-init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro

@@ -161,8 +161,9 @@ class StallBill {
 class Order {
   Order({
     required this.orderId, required this.userId, required this.canteenId, required this.canteenName,
-    required this.subtotal, required this.tax, required this.convenienceFee, required this.total,
-    required this.pickupSlot, required this.status, required this.createdAt, required this.bills,
+    required this.subtotal, required this.tax, required this.convenienceFee, required this.additionalFee,
+    this.platformFeePercent = 2.36,
+    required this.total, required this.pickupSlot, required this.status, required this.createdAt, required this.bills,
   });
   final int orderId;
   final int userId;
@@ -171,6 +172,9 @@ class Order {
   final double subtotal;
   final double tax;
   final double convenienceFee;
+  /// Platform fee in ₹ for this order (percent of items+GST, GST-inclusive).
+  final double additionalFee;
+  final double platformFeePercent;
   final double total;
   final String pickupSlot;
   String status; // 'pending' | 'paid' | 'expired' | 'cancelled'
@@ -179,8 +183,9 @@ class Order {
 
   Map<String, dynamic> toJson() => {
         'order_id': orderId, 'user_id': userId, 'canteen_id': canteenId, 'canteen_name': canteenName,
-        'subtotal': subtotal, 'tax': tax, 'convenience_fee': convenienceFee, 'total': total,
-        'pickup_slot': pickupSlot, 'status': status, 'created_at': createdAt.toIso8601String(),
+        'subtotal': subtotal, 'tax': tax, 'convenience_fee': convenienceFee, 'additional_fee': additionalFee,
+        'platform_fee_percent': platformFeePercent,
+        'total': total, 'pickup_slot': pickupSlot, 'status': status, 'created_at': createdAt.toIso8601String(),
         'bills': bills.map((b) => b.toJson()).toList(),
       };
   factory Order.fromJson(Map<String, dynamic> j) => Order(
@@ -191,6 +196,8 @@ class Order {
         subtotal: (j['subtotal'] as num).toDouble(),
         tax: (j['tax'] as num).toDouble(),
         convenienceFee: (j['convenience_fee'] as num).toDouble(),
+        additionalFee: (j['additional_fee'] as num?)?.toDouble() ?? 0,
+        platformFeePercent: (j['platform_fee_percent'] as num?)?.toDouble() ?? 2.36,
         total: (j['total'] as num).toDouble(),
         pickupSlot: j['pickup_slot'] as String,
         status: j['status'] as String,

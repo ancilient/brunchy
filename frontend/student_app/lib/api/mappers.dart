@@ -104,6 +104,8 @@ Order orderFromApi(Map<String, dynamic> j, {String pickupSlot = 'now'}) => Order
       subtotal: _num(j['subtotal']),
       tax: _num(j['tax']),
       convenienceFee: _num(j['convenienceFee']),
+      additionalFee: _num(j['additionalFee']),
+      platformFeePercent: _num(j['platformFeePercent']) > 0 ? _num(j['platformFeePercent']) : 2.36,
       total: _num(j['total']),
       pickupSlot: pickupSlot,
       status: j['status'] as String,

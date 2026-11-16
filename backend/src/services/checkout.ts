@@ -4,7 +4,7 @@ import { IST_TODAY, exec, isDuplicateKey, one, pool, rows, withTx } from '../db/
 import { AppError, badRequest, conflict, forbidden, notFound } from '../errors.js';
 import { scheduleHoldExpiry } from '../jobs/holdExpiry.js';
 import { gateway } from '../payments/gateway.js';
-import { billTaxPaise, canteenTakesOrders, effectiveStallStatus, toPaise, toRupees } from '../util.js';
+import { canteenTakesOrders, effectiveStallStatus, toPaise, toRupees } from '../util.js';
 import { audit } from './audit.js';
 import { releaseHolds } from './holds.js';
 import { bustMenuCache } from './menu.js';
@@ -50,31 +50,27 @@ function mergeLines(items: CartLine[]) {
 export async function recalcTotals(conn: PoolConnection, orderId: number) {
   const bills = await rows<{ stall_order_id: number }>(conn, 'SELECT stall_order_id FROM stall_orders WHERE order_id = ?', [orderId]);
   let subtotal = 0;
-  let tax = 0;
   for (const bill of bills) {
-    const items = await rows<{ price: number; quantity: number; gst_rate: number }>(
+    const items = await rows<{ price: number; quantity: number }>(
       conn,
-      "SELECT price, quantity, gst_rate FROM order_items WHERE stall_order_id = ? AND item_status = 'active'",
+      "SELECT price, quantity FROM order_items WHERE stall_order_id = ? AND item_status = 'active'",
       [bill.stall_order_id],
     );
-    const lines = items.map((i) => ({ pricePaise: toPaise(i.price), quantity: i.quantity, gstRate: i.gst_rate }));
-    const billSubtotal = lines.reduce((s, l) => s + l.pricePaise * l.quantity, 0);
-    const billTax = billTaxPaise(lines);
+    const billSubtotal = items.reduce((s, i) => s + toPaise(i.price) * i.quantity, 0);
     subtotal += billSubtotal;
-    tax += billTax;
-    await exec(conn, 'UPDATE stall_orders SET subtotal = ?, tax = ?, total = ? WHERE stall_order_id = ?', [
+    // No separate stall GST or convenience fee — only item subtotal on the bill.
+    await exec(conn, 'UPDATE stall_orders SET subtotal = ?, tax = 0, total = ? WHERE stall_order_id = ?', [
       toRupees(billSubtotal),
-      toRupees(billTax),
-      toRupees(billSubtotal + billTax),
+      toRupees(billSubtotal),
       bill.stall_order_id,
     ]);
   }
-  const fee = toPaise(config.CONVENIENCE_FEE);
-  await exec(conn, 'UPDATE orders SET subtotal = ?, tax = ?, convenience_fee = ?, total = ? WHERE order_id = ?', [
+  // Platform fee = % of item total (rate already covers platform fee + GST).
+  const platformFee = Math.round((subtotal * config.PLATFORM_FEE_PERCENT) / 100);
+  await exec(conn, 'UPDATE orders SET subtotal = ?, tax = 0, convenience_fee = 0, additional_fee = ?, total = ? WHERE order_id = ?', [
     toRupees(subtotal),
-    toRupees(tax),
-    toRupees(fee),
-    toRupees(subtotal + tax + fee),
+    toRupees(platformFee),
+    toRupees(subtotal + platformFee),
     orderId,
   ]);
 }
@@ -156,8 +152,8 @@ export async function checkout(userId: number, input: { canteenId: number; items
       const holdSeconds = Math.round(config.HOLD_MINUTES * 60);
       const order = await exec(
         conn,
-        `INSERT INTO orders (user_id, canteen_id, idempotency_key, subtotal, tax, convenience_fee, total, payment_expires_at)
-         VALUES (?, ?, ?, 0, 0, 0, 0, UTC_TIMESTAMP() + INTERVAL ? SECOND)`,
+        `INSERT INTO orders (user_id, canteen_id, idempotency_key, subtotal, tax, convenience_fee, additional_fee, total, payment_expires_at)
+         VALUES (?, ?, ?, 0, 0, 0, 0, 0, UTC_TIMESTAMP() + INTERVAL ? SECOND)`,
         [userId, input.canteenId, input.idempotencyKey, holdSeconds],
       );
       const newOrderId = order.insertId;
@@ -244,7 +240,20 @@ export async function describeCheckout(orderId: number) {
     needsConfirmation: order.status === 'pending' && shortages.length > 0,
     payment:
       order.status === 'pending' && order.gatewayOrderRef
-        ? { gateway: gateway.name, gatewayOrderRef: order.gatewayOrderRef, amountPaise: toPaise(order.total), currency: 'INR', expiresAt: order.paymentExpiresAt }
+        ? {
+            gateway: gateway.name,
+            gatewayOrderRef: order.gatewayOrderRef,
+            amountPaise: toPaise(order.total),
+            currency: 'INR',
+            expiresAt: order.paymentExpiresAt,
+            ...(gateway.name === 'razorpay'
+              ? {
+                  keyId: config.RAZORPAY_KEY_ID,
+                  name: 'Brunchy',
+                  description: `Order #${orderId}`,
+                }
+              : {}),
+          }
         : null,
   };
 }
@@ -312,7 +321,7 @@ export async function confirmPartial(userId: number, orderId: number, decisions:
     );
     const left = await one<{ n: number }>(conn, 'SELECT COUNT(*) AS n FROM stall_orders WHERE order_id = ?', [orderId]);
     if (!left || Number(left.n) === 0) {
-      await exec(conn, "UPDATE orders SET status = 'cancelled', subtotal = 0, tax = 0, total = 0 WHERE order_id = ?", [orderId]);
+      await exec(conn, "UPDATE orders SET status = 'cancelled', subtotal = 0, tax = 0, convenience_fee = 0, additional_fee = 0, total = 0 WHERE order_id = ?", [orderId]);
     } else {
       await recalcTotals(conn, orderId);
     }
