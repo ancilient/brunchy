@@ -13,15 +13,13 @@ A production-ready Flutter app designed for food stall vendors in college campus
 ## Getting Started
 
 ### Prerequisites
-- Flutter **3.47** (stable) with the Java bundled in Android Studio. The Android build uses Gradle 9.3.1, AGP 9.1.0
-  and Kotlin 2.4.0, the same as the student app.
+- Flutter **3.47** (stable) with the Java bundled in Android Studio. The Android build uses Gradle 9.3.1, AGP 9.1.1
+  and Kotlin 2.4.0, the same as the student app. It compiles against Android API 37 (needed by `permission_handler` 13),
+  so install **Android SDK Platform 37** in Android Studio's SDK Manager.
 - Android SDK installed & configured
 
 ### Run it against your local backend (default)
 The app talks to the Brunchy backend ([`backend/`](../../backend), contract in [`docs/api/openapi.yaml`](../../docs/api/openapi.yaml)).
-
-**Windows shortcut:** with the backend running and the phone plugged in, run `run.bat`. It sets up the port
-forward below, warns if the backend is not answering, then starts `flutter run` (hot reload works).
 
 1. Start the backend: `docker compose up -d` in the repo root, then `npm run dev` in `backend/`.
 2. Phone on USB with USB debugging: `adb reverse tcp:4000 tcp:4000`

@@ -7,9 +7,6 @@ from the server; the cart and canteen choice stay on the phone. Run every comman
 It uses the app id `com.ancilient.brunchy`, the same as the React prototype, so a phone can have only one of them installed.
 
 ## Run it against your local backend
-**Windows shortcut:** with the backend running and the phone plugged in, double-click `run.bat` (or run it from a terminal).
-It sets up the port forward below, warns if the backend is not answering, then starts `flutter run` (hot reload works).
-
 1. Start the backend (see [`backend/README.md`](../../backend/README.md)): `docker compose up -d` in the repo root, then
    `npm run dev` in `backend/`.
 2. Connect the phone with **USB debugging** and forward the backend port to it (the phone's `localhost:4000` then reaches your PC):
@@ -37,7 +34,7 @@ flutter run --dart-define=API_URL=http://192.168.1.10:4000/api/v1
 
 ## Build an APK
 Needs **Flutter 3.47** (stable) and **Android Studio**. Run `flutter doctor` once to check.
-- **Windows:** double-click `build-apk.bat` · **Mac / Linux:** `./build-apk.sh`
+- Run `./build-apk.sh` (on Windows, from Git Bash: `bash build-apk.sh`). It writes `Brunchy-flutter.apk` in this folder.
 - To point an APK at a server: `flutter build apk --dart-define=API_URL=https://api.example.com/api/v1`
 
 Debug builds may use plain `http://` (for the local backend); release builds need `https://`.
