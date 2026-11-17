@@ -7,6 +7,9 @@ from the server; the cart and canteen choice stay on the phone. Run every comman
 It uses the app id `com.ancilient.brunchy`, the same as the React prototype, so a phone can have only one of them installed.
 
 ## Run it against your local backend
+**Windows shortcut:** with the backend running and the phone plugged in, double-click `run.bat` (or run it from a terminal).
+It sets up the port forward below, warns if the backend is not answering, then starts `flutter run` (hot reload works).
+
 1. Start the backend (see [`backend/README.md`](../../backend/README.md)): `docker compose up -d` in the repo root, then
    `npm run dev` in `backend/`.
 2. Connect the phone with **USB debugging** and forward the backend port to it (the phone's `localhost:4000` then reaches your PC):

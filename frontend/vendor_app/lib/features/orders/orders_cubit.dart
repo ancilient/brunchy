@@ -31,7 +31,9 @@ class OrdersCubit extends Cubit<OrdersState> {
   bool _isOverrideActive = false;
   bool _isFiringBatch = false;
 
-  bool get acceptingOrders => _currentStallId == null || _localStorageService.isAcceptingOrders(_currentStallId!);
+  bool get acceptingOrders =>
+      _currentStallId == null ||
+      _localStorageService.isAcceptingOrders(_currentStallId!);
 
   String? get currentStallId => _currentStallId;
   int get maxCapacity => _maxCapacity;
@@ -60,14 +62,17 @@ class OrdersCubit extends Cubit<OrdersState> {
   }
 
   Future<void> setAcceptingOrders(bool value) async {
-    final stallId = _currentStallId;
-    if (stallId == null) return;
+    final stallId = _currentStallId ??
+        _localStorageService.getStallId(DateFormatter.todayKey()) ??
+        'stall_001';
+    _currentStallId = stallId;
     await _localStorageService.setAcceptingOrders(stallId, value);
     if (!value) {
-      await _localStorageService.queueOfflineAction('{"action":"set_accepting_orders","stallId":"$stallId","accepting":false}');
+      await _localStorageService.queueOfflineAction(
+          '{"action":"set_accepting_orders","stallId":"$stallId","accepting":false}');
     }
     final base = _currentLoaded;
-    if (base != null) emit(base.copyWith());
+    if (base != null) emit(base.copyWith(acceptingOrders: value));
   }
 
   void toggleOverloadOverride() {
@@ -240,7 +245,11 @@ class OrdersCubit extends Cubit<OrdersState> {
     final availableSlots = _maxCapacity - base.preparingCount;
     if (availableSlots <= 0) {
       _isFiringBatch = false;
-      emit(OrderActionError(orderId: '', message: 'Capacity full (${base.preparingCount}/$_maxCapacity). Mark orders Ready or raise the limit.', base: base));
+      emit(OrderActionError(
+          orderId: '',
+          message:
+              'Capacity full (${base.preparingCount}/$_maxCapacity). Mark orders Ready or raise the limit.',
+          base: base));
       return;
     }
 
@@ -256,7 +265,11 @@ class OrdersCubit extends Cubit<OrdersState> {
     }
     _isFiringBatch = false;
     final current = _currentLoaded;
-    if (current != null) emit(OrderActionError(orderId: '', message: '$started ${started == 1 ? 'order' : 'orders'} started', base: current));
+    if (current != null)
+      emit(OrderActionError(
+          orderId: '',
+          message: '$started ${started == 1 ? 'order' : 'orders'} started',
+          base: current));
   }
 
   /// Mark all orders in a batch as Ready
@@ -276,7 +289,11 @@ class OrdersCubit extends Cubit<OrdersState> {
 
     await _autoPromoteQueueIfNeeded(_currentLoaded);
     final current = _currentLoaded;
-    if (current != null) emit(OrderActionError(orderId: '', message: '$ready ${ready == 1 ? 'order' : 'orders'} ready', base: current));
+    if (current != null)
+      emit(OrderActionError(
+          orderId: '',
+          message: '$ready ${ready == 1 ? 'order' : 'orders'} ready',
+          base: current));
   }
 
   void onRealtimeEvent(Order updatedOrder, String event) {
@@ -370,6 +387,7 @@ class OrdersCubit extends Cubit<OrdersState> {
       connectionState: connState,
       maxCapacity: _maxCapacity,
       isOverrideActive: _isOverrideActive,
+      acceptingOrders: acceptingOrders,
     ));
   }
 

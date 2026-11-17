@@ -13,6 +13,7 @@ import '../../data/models/adjustment_reason.dart';
 import 'inventory_cubit.dart';
 import 'inventory_state.dart';
 import 'widgets/inventory_item_row.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class InventoryScreen extends StatelessWidget {
   const InventoryScreen({super.key});
@@ -24,7 +25,7 @@ class InventoryScreen extends StatelessWidget {
   Future<void> _showResetStockDialog(BuildContext context, String stallId, String date, List<InventoryItem> items) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppDialog(
         title: const Text('Reset Daily Stock?'),
         content: const Text(
           'This will reset the current stock of all items back to their opening values for today. This action cannot be undone.',
@@ -136,7 +137,7 @@ class InventoryScreen extends StatelessWidget {
             final items = state.items;
 
             return RefreshIndicator(
-              color: AppColors.primaryOrange,
+              color: AppColors.primary,
               onRefresh: () => context.read<InventoryCubit>().loadInventory(
                     stallId: stallId,
                     date: today,
@@ -149,22 +150,22 @@ class InventoryScreen extends StatelessWidget {
                     margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: AppColors.vendorTeal.withValues(alpha: 0.1),
+                      color: AppColors.brandTeal.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                      border: Border.all(color: AppColors.vendorTeal.withValues(alpha: 0.3)),
+                      border: Border.all(color: AppColors.brandTeal.withValues(alpha: 0.3)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.auto_awesome, color: AppColors.vendorTeal, size: 20),
+                            const Icon(Icons.auto_awesome, color: AppColors.brandTeal, size: 20),
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(
                               child: Text(
                                 'Pre-filled from yesterday\'s closing stock. Tap + / − to adjust current physical count.',
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: AppColors.brandBrown,
+                                      color: AppColors.ink,
                                       fontWeight: FontWeight.w500,
                                     ),
                               ),
@@ -179,8 +180,8 @@ class InventoryScreen extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               minimumSize: const Size(0, 32),
                             ),
-                            icon: const Icon(Icons.restart_alt, size: 16, color: AppColors.primaryOrange),
-                            label: const Text('Reset Daily Stock', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 12)),
+                            icon: const Icon(Icons.restart_alt, size: 16, color: AppColors.primary),
+                            label: const Text('Reset Daily Stock', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12)),
                             onPressed: () => _showResetStockDialog(context, stallId, today, items),
                           ),
                         ),

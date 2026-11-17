@@ -215,15 +215,17 @@ class _BillCard extends StatelessWidget {
             }),
           ],
           if (isReady)
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-              decoration: BoxDecoration(gradient: C.brandGradient, borderRadius: BorderRadius.circular(12)),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const LIcon('Check', size: 14, color: Colors.white, strokeWidth: 3),
-                const SizedBox(width: 6),
-                Flexible(child: txt('Go to the counter and say code ${b.pickupCode}', 12, w: w7, color: Colors.white, align: TextAlign.center)),
-              ]),
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
+                decoration: BoxDecoration(gradient: C.brandGradient, borderRadius: BorderRadius.circular(99)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const LIcon('Check', size: 14, color: Colors.white, strokeWidth: 3),
+                  const SizedBox(width: 6),
+                  Flexible(child: txt('Go to the counter and say code ${b.pickupCode}', 12, w: w7, color: Colors.white, align: TextAlign.center)),
+                ]),
+              ),
             ),
         ]),
       ),
@@ -280,15 +282,18 @@ class _BillCard extends StatelessWidget {
         ]),
       );
 
-  Widget _action(String label, Color bg, Color fg, Color border, Widget? icon, VoidCallback onTap) => Tap(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12), border: Border.all(color: border)),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            if (icon != null) ...[icon, const SizedBox(width: 6)],
-            txt(label, 12, w: w7, color: fg),
-          ]),
+  /// Sized to its label and centred, not stretched across the card.
+  Widget _action(String label, Color bg, Color fg, Color border, Widget? icon, VoidCallback onTap) => Center(
+        child: Tap(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99), border: Border.all(color: border)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (icon != null) ...[icon, const SizedBox(width: 6)],
+              txt(label, 12, w: w7, color: fg),
+            ]),
+          ),
         ),
       );
 }
@@ -409,7 +414,12 @@ class ProfilePage extends StatelessWidget {
                     ],
                   ]),
                 ),
-                Tap(onTap: s.logoutStudent, child: const Padding(padding: EdgeInsets.all(8), child: LIcon('LogOut', size: 16, color: C.slate400))),
+                Tap(
+                  onTap: () async {
+                    if (await _confirmLogout(context)) s.logoutStudent();
+                  },
+                  child: const Padding(padding: EdgeInsets.all(8), child: LIcon('LogOut', size: 16, color: C.slate400)),
+                ),
               ]),
             ),
             const SizedBox(height: 20),
@@ -497,67 +507,86 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-/// The policy popup opened from Profile.
-class PolicyModal extends StatelessWidget {
-  const PolicyModal({super.key, required this.kind, required this.onClose});
-  final String kind;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget para(String bold, String rest) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text.rich(TextSpan(style: ts(12, color: C.slate600), children: [
-            if (bold.isNotEmpty) TextSpan(text: bold, style: ts(12, w: w7, color: C.slate600)),
-            TextSpan(text: rest),
-          ])),
-        );
-    final List<Widget> body;
-    if (kind == 'refund') {
-      body = [
-        para('1. Full Refund Before Cooking:', " Orders cancelled while in 'Waiting for Acceptance' or 'Accepted' before kitchen cooking begins are credited 100% to your original payment UPI handle."),
-        para('2. Out-of-Stock Items:', ' If a specific item runs out, it is refunded immediately while the remaining bill items continue.'),
-        para('3. Stall Emergencies:', ' All unfulfilled orders are automatically refunded within 24 hours via gateway route.'),
-      ];
-    } else if (kind == 'terms') {
-      body = [
-        para('', 'Brunchy is the campus food ordering technology platform providing real-time menu browsing and queue-free counter collections.'),
-        para('', 'Students are expected to collect food within the designated preparation window by presenting their 3-digit pickup code.'),
-      ];
-    } else {
-      body = [
-        para('', 'We collect student name, mobile number, and optional registration number strictly for token verification and SMS pickup notifications.'),
-        para('', 'We never store GPS coordinates or payment credentials on our servers.'),
-      ];
-    }
-    return Stack(children: [
-      Positioned.fill(child: Container(color: C.a(Colors.black, 0.6))),
-      Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 384),
+/// "Log out?" card that pops in over a blurred backdrop. Returns true when the student confirms.
+Future<bool> _confirmLogout(BuildContext context) async {
+  final r = await showGeneralDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Cancel',
+    barrierColor: C.a(C.slate900, 0.35),
+    transitionDuration: const Duration(milliseconds: 260),
+    pageBuilder: (c, _, __) => Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: Material(
+            color: Colors.transparent,
             child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.slate100)),
-              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                txt('${kind[0].toUpperCase()}${kind.substring(1)} Policy', 16, w: w7, font: F.display),
-                const SizedBox(height: 8),
-                ConstrainedBox(constraints: const BoxConstraints(maxHeight: 240), child: SingleChildScrollView(child: Column(children: body))),
-                const SizedBox(height: 16),
-                Tap(
-                  onTap: onClose,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(color: C.brand, borderRadius: BorderRadius.circular(12)),
-                    child: Center(child: txt('Close', 12, w: w7, color: Colors.white)),
-                  ),
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [BoxShadow(color: C.a(Colors.black, 0.18), blurRadius: 32, offset: const Offset(0, 14))],
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(color: C.rose50, shape: BoxShape.circle, border: Border.all(color: C.rose200, width: 2)),
+                  alignment: Alignment.center,
+                  child: const LIcon('LogOut', size: 26, color: C.rose600),
                 ),
+                const SizedBox(height: 16),
+                txt('Log out of Brunchy?', 18, w: w7, font: F.display, align: TextAlign.center),
+                const SizedBox(height: 8),
+                txt('Your cart on this phone will be cleared. You can log back in anytime with your phone number and an OTP.',
+                    12, color: C.slate500, align: TextAlign.center, height: 1.5),
+                const SizedBox(height: 24),
+                Row(children: [
+                  Expanded(
+                    child: Tap(
+                      onTap: () => Navigator.pop(c, false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        decoration: BoxDecoration(color: C.cream, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.amber200)),
+                        alignment: Alignment.center,
+                        child: txt('Stay', 14, w: w7, color: C.slate700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Tap(
+                      onTap: () => Navigator.pop(c, true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        decoration: BoxDecoration(
+                          color: C.rose600,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [BoxShadow(color: C.a(C.rose600, 0.3), blurRadius: 12, offset: const Offset(0, 6))],
+                        ),
+                        alignment: Alignment.center,
+                        child: txt('Log out', 14, w: w7, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ]),
               ]),
             ),
           ),
         ),
       ),
-    ]);
-  }
+    ),
+    transitionBuilder: (c, anim, _, child) {
+      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutBack, reverseCurve: Curves.easeIn);
+      return BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6 * anim.value, sigmaY: 6 * anim.value),
+        child: FadeTransition(
+          opacity: anim,
+          child: ScaleTransition(scale: Tween(begin: 0.88, end: 1.0).animate(curved), child: child),
+        ),
+      );
+    },
+  );
+  return r ?? false;
 }

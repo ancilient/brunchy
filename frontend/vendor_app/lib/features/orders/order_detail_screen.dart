@@ -9,6 +9,7 @@ import '../../data/models/order_status.dart';
 import '../../data/models/cancel_reason.dart';
 import '../../injection_container.dart';
 import '../../data/repositories/order_repository.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final String orderId;
@@ -46,7 +47,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           appBar: AppBar(title: const Text('Order')),
           body: const Center(
               child:
-                  CircularProgressIndicator(color: AppColors.primaryOrange)));
+                  CircularProgressIndicator(color: AppColors.primary)));
     }
 
     final canCancel = order.status == OrderStatus.placed ||
@@ -90,7 +91,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 16,
-                                  color: AppColors.primaryOrange)),
+                                  color: AppColors.primary)),
                         ]),
                       ]))),
           const SizedBox(height: AppSpacing.md),
@@ -115,13 +116,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-                color: AppColors.vendorTeal.withValues(alpha: 0.1),
+                color: AppColors.brandTeal.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusSm)),
             child: const Row(children: [
-              Icon(Icons.payment, color: AppColors.vendorTeal, size: 16),
+              Icon(Icons.payment, color: AppColors.brandTeal, size: 16),
               SizedBox(width: AppSpacing.sm),
               Text('Paid in-app (prepaid)',
-                  style: TextStyle(color: AppColors.vendorTeal))
+                  style: TextStyle(color: AppColors.brandTeal))
             ]),
           ),
           if (canCancel) ...[
@@ -147,7 +148,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     showDialog(
         context: context,
         builder: (_) => StatefulBuilder(
-              builder: (ctx, setState) => AlertDialog(
+              builder: (ctx, setState) => AppDialog(
                 title: const Text('Cancel Order'),
                 content: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -187,10 +188,11 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (status) {
-      OrderStatus.collected => AppColors.successGreen,
+      // Ready (go and collect) is green; finished orders go quiet.
+      OrderStatus.collected => AppColors.grey600,
       OrderStatus.cancelled || OrderStatus.refunded => AppColors.errorRed,
-      OrderStatus.ready => AppColors.vendorTeal,
-      _ => AppColors.primaryOrange,
+      OrderStatus.ready => AppColors.successGreen,
+      _ => AppColors.primary,
     };
     return Chip(
         label: Text(status.label,

@@ -381,6 +381,12 @@ class AppState extends ChangeNotifier {
     _changed();
   }
 
+  /// Takes one item out of the cart completely, whatever its quantity.
+  void removeFromCart(int productId) {
+    cart.removeWhere((l) => l.productId == productId);
+    _changed();
+  }
+
   void clearCart() {
     cart = [];
     _changed();

@@ -17,6 +17,7 @@ dependencies:
   http: ^1.6.0
   socket_io_client: ^3.1.6
   google_sign_in: ^7.2.0
+  lottie: ^3.8.2                         # splash animation (vector, assets/splash)
 
 dev_dependencies:
   flutter_test:
@@ -26,12 +27,18 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/splash/brunchy_splash.json
+    - assets/payment/
+    - assets/brand/logo.png
 
-# Same app icon as the React/Capacitor build (orange background, white logo). Run: dart run flutter_launcher_icons
+# Yellow burger app icon (the real full-bleed square logo, app icon/original). Run: dart run flutter_launcher_icons
+# The adaptive background is the icon's own yellow, so the inset foreground blends into it seamlessly.
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: assets/icon-only.png
-  adaptive_icon_background: '#E63E11'
-  adaptive_icon_foreground: assets/icon-foreground.png
+  image_path: assets/app-icon.png
+  adaptive_icon_background: '#FDDC1F'
+  adaptive_icon_foreground: assets/app-icon.png
+  adaptive_icon_foreground_inset: 21 # keeps "Brunchy" clear of the edge on round launchers
   min_sdk_android: 21
