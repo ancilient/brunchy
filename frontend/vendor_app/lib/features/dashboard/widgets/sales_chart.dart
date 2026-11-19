@@ -6,6 +6,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../data/models/dashboard_period.dart';
 import '../../../data/models/dashboard_stats.dart';
+import '../../../core/widgets/sliding_tabs.dart';
 
 class SalesChart extends StatelessWidget {
   final List<ChartPoint> chartData;
@@ -66,24 +67,14 @@ class SalesChart extends StatelessWidget {
                     fontSize: 16,
                   ),
                 ),
-                SegmentedButton<ChartMetric>(
-                  segments: const [
-                    ButtonSegment(
-                      value: ChartMetric.revenue,
-                      label: Text('Revenue', style: TextStyle(fontSize: 12)),
-                    ),
-                    ButtonSegment(
-                      value: ChartMetric.orderCount,
-                      label: Text('Orders', style: TextStyle(fontSize: 12)),
-                    ),
-                  ],
-                  selected: {selectedMetric},
-                  onSelectionChanged: (set) => onMetricChanged(set.first),
-                  style: ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    padding: WidgetStateProperty.all(
-                        const EdgeInsets.symmetric(horizontal: 8)),
+                SizedBox(
+                  width: 170,
+                  child: SlidingTabs(
+                    labels: const ['Revenue', 'Orders'],
+                    selected: selectedMetric == ChartMetric.revenue ? 0 : 1,
+                    onChanged: (i) => onMetricChanged(i == 0 ? ChartMetric.revenue : ChartMetric.orderCount),
+                    height: 28,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -97,7 +88,7 @@ class SalesChart extends StatelessWidget {
                   maxY: maxY,
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
-                      getTooltipColor: (_) => AppColors.brandBrown,
+                      getTooltipColor: (_) => AppColors.ink,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
                         final point = chartData[group.x.toInt()];
                         final valStr = isRevenue
@@ -198,7 +189,7 @@ class SalesChart extends StatelessWidget {
                       barRods: [
                         BarChartRodData(
                           toY: val,
-                          color: AppColors.primaryOrange,
+                          color: AppColors.primary,
                           width: chartData.length > 15 ? 7 : 14,
                           borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(4)),

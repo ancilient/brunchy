@@ -11,6 +11,8 @@ import '../../core/utils/date_formatter.dart';
 import '../../data/models/stall.dart';
 import 'choose_stall_cubit.dart';
 import 'choose_stall_state.dart';
+import '../../core/widgets/brand_logo.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class ChooseStallScreen extends StatefulWidget {
   const ChooseStallScreen({super.key});
@@ -45,7 +47,7 @@ class _ChooseStallScreenState extends State<ChooseStallScreen> {
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: Image.asset('assets/images/logo_horizontal.png', height: 32),
+          title: const BrandLockup(height: 32),
           centerTitle: true,
           automaticallyImplyLeading: false,
         ),
@@ -86,8 +88,8 @@ class _ChooseStallScreenState extends State<ChooseStallScreen> {
               if (_hasExistingSession) ...[
                 const SizedBox(height: AppSpacing.md),
                 TextButton.icon(
-                  icon: const Icon(Icons.swap_horiz, color: AppColors.primaryOrange),
-                  label: const Text(AppStrings.switchStall, style: TextStyle(color: AppColors.primaryOrange)),
+                  icon: const Icon(Icons.swap_horiz, color: AppColors.primary),
+                  label: const Text(AppStrings.switchStall, style: TextStyle(color: AppColors.primary)),
                   onPressed: () async {
                     await sl<LocalStorageService>().clearStallSession(DateFormatter.todayKey());
                     setState(() => _hasExistingSession = false);
@@ -136,7 +138,7 @@ class _ChooseStallScreenState extends State<ChooseStallScreen> {
   void _showConflictDialog(BuildContext context, StallClaimConflict state) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => AppDialog(
         title: const Text('Stall Already Open'),
         content: Text('This stall is open on another device (${state.claimedBy}). Take over?'),
         actions: [

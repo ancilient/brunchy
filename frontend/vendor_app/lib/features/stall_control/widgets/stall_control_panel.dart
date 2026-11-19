@@ -9,6 +9,7 @@ import '../../../data/models/cancel_reason.dart';
 import '../../orders/orders_cubit.dart';
 import '../../orders/orders_state.dart';
 import '../stall_control_cubit.dart';
+import '../../../core/widgets/app_dialog.dart';
 
 class StallControlPanel extends StatelessWidget {
   const StallControlPanel({super.key});
@@ -114,7 +115,7 @@ class StallControlPanel extends StatelessWidget {
     await showDialog<void>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
-            builder: (ctx, setState) => AlertDialog(
+            builder: (ctx, setState) => AppDialog(
                     title: const Text('Emergency stop + refund?'),
                     content: Column(mainAxisSize: MainAxisSize.min, children: [
                       const Text(

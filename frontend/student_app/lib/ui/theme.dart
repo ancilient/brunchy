@@ -121,15 +121,15 @@ Widget pill(String text, {required Color bg, required Color fg, double size = 10
 Widget dot(Color c, [double s = 8]) => Container(width: s, height: s, decoration: BoxDecoration(color: c, shape: BoxShape.circle));
 
 /// The orange square logo tile with crossed utensils.
-Widget logoTile(double size, double radius, Widget icon) => Container(
+/// The Brunchy logo (yellow burger disc, assets/brand/logo.png) with a soft shadow.
+Widget brandLogo(double size) => Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient: C.brandGradientDiag,
-        borderRadius: BorderRadius.circular(radius),
-        boxShadow: [BoxShadow(color: C.a(C.orange500, 0.3), blurRadius: 10, offset: const Offset(0, 4))],
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: C.a(const Color(0xFFF59E0B), 0.3), blurRadius: size * 0.28, offset: Offset(0, size * 0.1))],
       ),
-      child: Center(child: icon),
+      child: Image.asset('assets/brand/logo.png', width: size, height: size, filterQuality: FilterQuality.medium),
     );
 
 // ---------------- dialogs (the React app uses alert() / confirm()) ----------------
@@ -153,4 +153,50 @@ Future<bool> showConfirm(BuildContext context, String message) async {
     ),
   );
   return r ?? false;
+}
+
+/// A number whose digits roll like a suitcase lock: counting up, the new digit drops in from the top;
+/// counting down, it rolls up from below. Only the digits that change move.
+class RollingNumber extends StatefulWidget {
+  const RollingNumber(this.value, {super.key, required this.style});
+  final int value;
+  final TextStyle style;
+  @override
+  State<RollingNumber> createState() => _RollingNumberState();
+}
+
+class _RollingNumberState extends State<RollingNumber> {
+  bool _up = true;
+
+  @override
+  void didUpdateWidget(RollingNumber old) {
+    super.didUpdateWidget(old);
+    if (widget.value != old.value) _up = widget.value > old.value;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final digits = '${widget.value}'.split('');
+    final dir = _up ? 1.0 : -1.0;
+    return ClipRect(
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        // Keyed from the right, so the ones digit stays the same switcher when the number gains a digit.
+        for (var i = 0; i < digits.length; i++)
+          AnimatedSwitcher(
+            key: ValueKey(digits.length - i),
+            duration: const Duration(milliseconds: 280),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, anim) {
+              final incoming = child.key == ValueKey(digits[i]);
+              // The outgoing digit plays this in reverse, so it leaves in the same direction the new one arrives.
+              final from = Offset(0, incoming ? -dir : dir);
+              return SlideTransition(position: Tween(begin: from, end: Offset.zero).animate(anim), child: child);
+            },
+            layoutBuilder: (current, previous) => Stack(alignment: Alignment.center, children: [...previous, if (current != null) current]),
+            child: Text(digits[i], key: ValueKey(digits[i]), style: widget.style),
+          ),
+      ]),
+    );
+  }
 }

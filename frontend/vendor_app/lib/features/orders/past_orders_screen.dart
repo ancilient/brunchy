@@ -53,7 +53,7 @@ class _PastOrdersScreenState extends State<PastOrdersScreen> {
           },
         )),
         Expanded(child: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryOrange))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _orders.isEmpty
             ? const Center(child: Text('No orders on this date'))
             : ListView.builder(
@@ -61,11 +61,11 @@ class _PastOrdersScreenState extends State<PastOrdersScreen> {
                 itemBuilder: (_, i) {
                   final o = _orders[i];
                   return ListTile(
-                    leading: CircleAvatar(backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.1), child: Text(o.billNumber.substring(1), style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.w700, fontSize: 12))),
+                    leading: CircleAvatar(backgroundColor: AppColors.primary.withValues(alpha: 0.1), child: Text(o.billNumber.substring(1), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12))),
                     title: Text('#${o.billNumber}'),
                     subtitle: Text('${o.items.length} item${o.items.length > 1 ? 's' : ''}'),
                     trailing: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Text(CurrencyFormatter.format(o.totalAmount), style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryOrange)),
+                      Text(CurrencyFormatter.format(o.totalAmount), style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primary)),
                       Chip(
                         label: Text(o.status.label, style: const TextStyle(fontSize: 10)),
                         backgroundColor: o.status == OrderStatus.collected ? AppColors.successGreen.withValues(alpha: 0.1) : AppColors.errorRed.withValues(alpha: 0.1),

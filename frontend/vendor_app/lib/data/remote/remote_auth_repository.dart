@@ -8,31 +8,43 @@ import '../models/canteen.dart';
 import '../models/stall.dart';
 import '../models/vendor.dart';
 import '../repositories/auth_repository.dart';
+import 'google_auth.dart';
 import 'vendor_api.dart';
 
-/// Login and stall session against the backend. A vendor phone number belongs to exactly one stall,
-/// so after the OTP check the stall comes from the server instead of being picked on the phone.
+/// Login and stall session against the backend. Each stall has one registered Google account,
+/// so after sign-in the stall comes from the server instead of being picked on the phone.
 class RemoteAuthRepository implements AuthRepository {
   RemoteAuthRepository(this._api, this._prefs);
   final VendorApi _api;
   final SharedPreferences _prefs;
+  final GoogleAuth _google = GoogleAuth();
 
   @override
-  Future<String?> requestOtp(String phone) async {
-    final r = await _api.post('/auth/otp', {'phone': phone});
-    return r['devCode'] as String?;
+  Future<({bool google, String? googleClientId, bool devLogin})> loginOptions() async {
+    final r = await _api.get('/auth/options');
+    return (google: r['google'] == true, googleClientId: r['googleClientId'] as String?, devLogin: r['devLogin'] == true);
   }
 
   @override
-  Future<({Vendor vendor, String token, String stallId, String stallName})> verifyOtp({
-    required String phone,
-    required String code,
-  }) async {
-    final r = await _api.post('/auth/verify', {'phone': phone, 'code': code});
+  Future<({Vendor vendor, String token, String stallId, String stallName})> signInWithGoogle(String serverClientId) async {
+    final idToken = await _google.signIn(serverClientId);
+    try {
+      return await _startSession(await _api.post('/auth/google', {'idToken': idToken, 'app': 'vendor'}));
+    } on AppException {
+      await _google.signOut(); // let them pick another account next time
+      rethrow;
+    }
+  }
+
+  @override
+  Future<({Vendor vendor, String token, String stallId, String stallName})> devLogin({String stallId = '1'}) async =>
+      _startSession(await _api.post('/auth/dev-login', {'app': 'vendor', 'stallId': int.tryParse(stallId) ?? 1}));
+
+  Future<({Vendor vendor, String token, String stallId, String stallName})> _startSession(Map<String, dynamic> r) async {
     final user = r['user'] as Map<String, dynamic>;
     if (user['role'] != 'vendor' || user['stallId'] == null) {
       throw const AppException(
-        message: 'This number is not registered to a stall. Ask the canteen manager to add it.',
+        message: 'This Google account is not registered to a stall. Ask the canteen manager to add it.',
         code: 'NOT_A_VENDOR',
       );
     }
@@ -43,7 +55,8 @@ class RemoteAuthRepository implements AuthRepository {
     final vendor = Vendor(
       id: user['id'] as String,
       name: user['name'] as String,
-      phone: (user['phone'] as String?) ?? phone,
+      // The app keeps one contact field; Google accounts give an email instead of a phone number.
+      phone: (user['email'] as String?) ?? (user['phone'] as String?) ?? '-',
       canteenId: stall['canteenId'] as String,
     );
     return (vendor: vendor, token: r['accessToken'] as String, stallId: stall['id'] as String, stallName: stall['name'] as String);
@@ -87,6 +100,7 @@ class RemoteAuthRepository implements AuthRepository {
         await _api.post('/auth/logout', {'refreshToken': rt});
       } catch (_) {}
     }
+    await _google.signOut();
     await _prefs.clear();
   }
 

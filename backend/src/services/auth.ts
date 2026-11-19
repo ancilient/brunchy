@@ -1,15 +1,14 @@
-import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { config } from '../config.js';
-import { exec, one, pool } from '../db/pool.js';
-import { AppError, badRequest, unauthorized } from '../errors.js';
-import { logger } from '../logger.js';
+import { exec, isDuplicateKey, one, pool } from '../db/pool.js';
+import { AppError, badRequest, forbidden, notFound, unauthorized } from '../errors.js';
 import { type AuthUser, type Role, signAccessToken } from '../middleware/auth.js';
-import { redis } from '../redis.js';
 import { idStr } from '../util.js';
 
-const OTP_TTL_SECONDS = 300;
-const OTP_MAX_ATTEMPTS = 5;
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+export type AppKind = 'student' | 'vendor';
 
 export interface UserRow {
   user_id: number;
@@ -17,6 +16,7 @@ export interface UserRow {
   phone: string | null;
   register_no: string | null;
   email: string | null;
+  google_sub: string | null;
   role: Role;
   stall_id: number | null;
   canteen_id: number | null;
@@ -30,6 +30,7 @@ export const toAuthUser = (u: UserRow): AuthUser => ({ id: u.user_id, role: u.ro
 export const serializeUser = (u: UserRow) => ({
   id: String(u.user_id),
   name: u.name,
+  email: u.email,
   phone: u.phone,
   registerNo: u.register_no,
   role: u.role,
@@ -41,34 +42,15 @@ export const serializeUser = (u: UserRow) => ({
 
 export const findUserById = (id: number) => one<UserRow>(pool, 'SELECT * FROM users WHERE user_id = ? AND is_active = TRUE', [id]);
 
-/** Creates a one-time code for the phone. Milestone 1 logs it instead of sending an SMS. */
-export async function requestOtp(phone: string) {
-  const code = String(randomInt(100000, 1000000));
-  await redis.set(`otp:${phone}`, JSON.stringify({ hash: sha256(code), attempts: 0 }), 'EX', OTP_TTL_SECONDS);
-  // TODO(SMS milestone): send via the SMS provider instead of logging.
-  logger.info({ phone }, `OTP for ${phone}: ${code}`);
-  return { expiresInSeconds: OTP_TTL_SECONDS, ...(config.OTP_DEV_ECHO ? { devCode: code } : {}) };
-}
-
-async function checkOtp(phone: string, code: string) {
-  const key = `otp:${phone}`;
-  const raw = await redis.get(key);
-  if (!raw) throw badRequest('OTP_EXPIRED', 'This code has expired. Ask for a new one.');
-  const entry = JSON.parse(raw) as { hash: string; attempts: number };
-  const ok = timingSafeEqual(Buffer.from(entry.hash), Buffer.from(sha256(code)));
-  if (!ok) {
-    entry.attempts += 1;
-    if (entry.attempts >= OTP_MAX_ATTEMPTS) {
-      await redis.del(key);
-      throw badRequest('OTP_LOCKED', 'Too many wrong codes. Ask for a new one.');
-    }
-    await redis.set(key, JSON.stringify(entry), 'KEEPTTL');
-    throw badRequest('OTP_WRONG', 'That code is not right. Please check and try again.', {
-      attemptsLeft: OTP_MAX_ATTEMPTS - entry.attempts,
-    });
-  }
-  await redis.del(key);
-}
+/**
+ * What the apps need to draw the login screen. The Web client ID is public (it is in every Google sign-in request),
+ * so serving it here means the apps don't need it built in.
+ */
+export const loginOptions = () => ({
+  google: config.GOOGLE_CLIENT_IDS.length > 0,
+  googleClientId: config.GOOGLE_CLIENT_IDS[0] ?? null,
+  devLogin: config.DEV_LOGIN,
+});
 
 async function issueTokens(user: UserRow) {
   const refreshToken = randomBytes(32).toString('hex');
@@ -80,27 +62,105 @@ async function issueTokens(user: UserRow) {
   return { accessToken: signAccessToken(toAuthUser(user)), refreshToken, user: serializeUser(user) };
 }
 
-/** Verifies the code. A new phone number becomes a student account (name required); vendors are created by the admin. */
-export async function verifyOtp(input: { phone: string; code: string; name?: string; registerNo?: string }) {
-  await checkOtp(input.phone, input.code);
-  let user = await one<UserRow>(pool, 'SELECT * FROM users WHERE phone = ?', [input.phone]);
-  if (user && !user.is_active) throw new AppError(403, 'ACCOUNT_DISABLED', 'This account is disabled.');
-  if (!user) {
-    if (!input.name) throw badRequest('NAME_REQUIRED', 'Please enter your name to create your account.');
-    try {
-      const result = await exec(pool, "INSERT INTO users (name, phone, register_no, role) VALUES (?, ?, ?, 'student')", [
-        input.name.trim(),
-        input.phone,
-        input.registerNo?.trim() || null,
-      ]);
-      user = await findUserById(result.insertId);
-    } catch (err) {
-      if ((err as { code?: string }).code === 'ER_DUP_ENTRY') throw badRequest('REGISTER_NO_TAKEN', 'This register number is already used.');
-      throw err;
-    }
+/** A student account can't sign in to the vendor app and the other way round. */
+function checkApp(user: UserRow, app: AppKind) {
+  if (!user.is_active) throw new AppError(403, 'ACCOUNT_DISABLED', 'This account is disabled.');
+  if (app === 'vendor' && user.role !== 'vendor') {
+    throw forbidden('NOT_A_VENDOR', 'This Google account is not registered to a stall. Ask the canteen manager to add it.');
   }
-  return issueTokens(user!);
+  if (app === 'student' && user.role !== 'student') {
+    throw forbidden('WRONG_APP', 'This account belongs to a stall. Please use the Brunchy Vendor app.');
+  }
 }
+
+// ---------------------------------------------------------------- Google Sign-In
+
+export interface GoogleIdentity {
+  sub: string;
+  email: string;
+  emailVerified: boolean;
+  name: string;
+}
+
+const googleClient = new OAuth2Client();
+
+/** Checks the ID token's signature, expiry and audience with Google's public keys. Replaced in tests. */
+let verifyGoogleToken = async (idToken: string): Promise<GoogleIdentity> => {
+  if (!config.GOOGLE_CLIENT_IDS.length) throw new AppError(503, 'GOOGLE_NOT_CONFIGURED', 'Google sign-in is not set up on the server yet.');
+  try {
+    const ticket = await googleClient.verifyIdToken({ idToken, audience: config.GOOGLE_CLIENT_IDS });
+    const p = ticket.getPayload();
+    if (!p?.sub || !p.email) throw new Error('token has no sub/email');
+    return { sub: p.sub, email: p.email.toLowerCase(), emailVerified: Boolean(p.email_verified), name: p.name ?? p.email.split('@')[0] };
+  } catch {
+    throw unauthorized('Google sign-in failed. Please try again.');
+  }
+};
+
+export function setGoogleVerifierForTests(fn: typeof verifyGoogleToken) {
+  verifyGoogleToken = fn;
+}
+
+/**
+ * Sign in with Google (free, replaces phone + OTP).
+ * The app sends Google's ID token; we verify it, then find the account by Google id, or by email for accounts the admin
+ * created in advance (vendors). A new Google account becomes a student, but only from the student app.
+ */
+export async function signInWithGoogle(idToken: string, app: AppKind) {
+  const g = await verifyGoogleToken(idToken);
+  if (!g.emailVerified) throw forbidden('EMAIL_NOT_VERIFIED', 'Verify your Google account email first.');
+
+  let user =
+    (await one<UserRow>(pool, 'SELECT * FROM users WHERE google_sub = ?', [g.sub])) ??
+    (await one<UserRow>(pool, 'SELECT * FROM users WHERE email = ?', [g.email]));
+
+  if (user) {
+    if (user.google_sub && user.google_sub !== g.sub) throw forbidden('ACCOUNT_MISMATCH', 'This email is linked to a different Google account.');
+    checkApp(user, app);
+    if (!user.google_sub || user.email !== g.email) {
+      await exec(pool, 'UPDATE users SET google_sub = ?, email = ? WHERE user_id = ?', [g.sub, g.email, user.user_id]);
+      user = (await findUserById(user.user_id))!;
+    }
+    return issueTokens(user);
+  }
+
+  if (app === 'vendor') {
+    throw forbidden('NOT_A_VENDOR', 'This Google account is not registered to a stall. Ask the canteen manager to add it.');
+  }
+  const domain = g.email.split('@')[1];
+  if (config.STUDENT_EMAIL_DOMAINS.length && !config.STUDENT_EMAIL_DOMAINS.includes(domain)) {
+    throw forbidden('EMAIL_DOMAIN_NOT_ALLOWED', `Please sign in with your university email (${config.STUDENT_EMAIL_DOMAINS.map((d) => '@' + d).join(', ')}).`);
+  }
+  try {
+    const r = await exec(pool, "INSERT INTO users (name, email, google_sub, role) VALUES (?, ?, ?, 'student')", [g.name, g.email, g.sub]);
+    return issueTokens((await findUserById(r.insertId))!);
+  } catch (err) {
+    if (isDuplicateKey(err)) {
+      // the same person signed in twice at the same moment: use the account the other request created
+      const existing = await one<UserRow>(pool, 'SELECT * FROM users WHERE google_sub = ?', [g.sub]);
+      if (existing) return issueTokens(existing);
+    }
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------- development login
+
+/**
+ * DEVELOPMENT ONLY (DEV_LOGIN=true): sign in without Google, as the demo student or as the vendor of a stall.
+ * Lets teammates and the automated tests work before the Google Cloud project exists. Refused in production.
+ */
+export async function devLogin(app: AppKind, stallId?: number) {
+  if (!config.DEV_LOGIN) throw notFound('NOT_FOUND', 'No such endpoint');
+  const user =
+    app === 'vendor'
+      ? await one<UserRow>(pool, "SELECT * FROM users WHERE role = 'vendor' AND stall_id = ? AND is_active = TRUE ORDER BY user_id LIMIT 1", [stallId ?? 1])
+      : await one<UserRow>(pool, "SELECT * FROM users WHERE role = 'student' AND is_active = TRUE ORDER BY user_id LIMIT 1");
+  if (!user) throw badRequest('NO_DEMO_ACCOUNT', 'No demo account found. Run npm run db:reset.');
+  return issueTokens(user);
+}
+
+// ---------------------------------------------------------------- sessions
 
 /** Swaps a refresh token for a new pair. The old refresh token stops working (rotation). */
 export async function refresh(refreshToken: string) {

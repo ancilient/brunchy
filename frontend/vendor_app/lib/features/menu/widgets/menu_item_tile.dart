@@ -1,9 +1,13 @@
 // lib/features/menu/widgets/menu_item_tile.dart
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../data/models/menu_item.dart';
+import '../../../core/widgets/rolling_number.dart';
+import '../../../core/widgets/app_dialog.dart';
 
 class MenuItemTile extends StatelessWidget {
   final MenuItem item;
@@ -24,7 +28,7 @@ class MenuItemTile extends StatelessWidget {
     final controller = TextEditingController(text: '${item.stock}');
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppDialog(
         title: Text('Set Stock for ${item.name}'),
         content: TextField(
           controller: controller,
@@ -39,7 +43,7 @@ class MenuItemTile extends StatelessWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             onPressed: () {
               final newStock = int.tryParse(controller.text.trim()) ?? item.stock;
               Navigator.pop(ctx);
@@ -102,8 +106,8 @@ class MenuItemTile extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: ActionChip(
-                    backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.1),
-                    label: Text('+$add', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryOrange)),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                    label: Text('+$add', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
                     onPressed: () {
                       Navigator.pop(ctx);
                       final newTotal = item.stock + add;
@@ -131,7 +135,7 @@ class MenuItemTile extends StatelessWidget {
                 const SizedBox(width: AppSpacing.sm),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryOrange,
+                    backgroundColor: AppColors.primary,
                     minimumSize: const Size(80, 48),
                   ),
                   onPressed: () {
@@ -156,16 +160,16 @@ class MenuItemTile extends StatelessWidget {
   Widget _buildVegNonVegBadge(bool isVeg) {
     final color = isVeg ? AppColors.successGreen : AppColors.errorRed;
     return Container(
-      width: 16,
-      height: 16,
+      width: 13,
+      height: 13,
       decoration: BoxDecoration(
-        border: Border.all(color: color, width: 1.5),
+        border: Border.all(color: color, width: 1.4),
         borderRadius: BorderRadius.circular(3),
       ),
       child: Center(
         child: Container(
-          width: 8,
-          height: 8,
+          width: 6,
+          height: 6,
           decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         ),
       ),
@@ -192,14 +196,14 @@ class MenuItemTile extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         text,
-        style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 11),
+        style: TextStyle(color: fg, fontWeight: FontWeight.bold, fontSize: 10),
       ),
     );
   }
@@ -210,7 +214,7 @@ class MenuItemTile extends StatelessWidget {
     final isAvailable = item.isAvailable && item.stock > 0;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 3),
       elevation: 0.5,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -220,7 +224,7 @@ class MenuItemTile extends StatelessWidget {
       ),
       color: isAvailable ? AppColors.white : AppColors.grey50,
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -231,16 +235,10 @@ class MenuItemTile extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    width: 52,
-                    height: 52,
+                    width: 44,
+                    height: 44,
                     color: AppColors.background,
-                    child: Center(
-                      child: Image.asset(
-                        'assets/images/logo_mascot.png',
-                        width: 38,
-                        height: 38,
-                      ),
-                    ),
+                    child: _buildItemPhoto(item.imageUrl),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -258,7 +256,8 @@ class MenuItemTile extends StatelessWidget {
                             child: Text(
                               item.name,
                               style: theme.textTheme.titleMedium?.copyWith(
-                                color: isAvailable ? AppColors.brandBrown : AppColors.grey500,
+                                fontSize: 14,
+                                color: isAvailable ? AppColors.ink : AppColors.grey500,
                                 decoration: isAvailable ? null : TextDecoration.lineThrough,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -274,7 +273,8 @@ class MenuItemTile extends StatelessWidget {
                           Text(
                             CurrencyFormatter.format(item.price),
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: isAvailable ? AppColors.primaryOrange : AppColors.grey500,
+                              fontSize: 13,
+                              color: isAvailable ? AppColors.primary : AppColors.grey500,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -316,18 +316,20 @@ class MenuItemTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.grey600),
+                      icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.grey600),
                       tooltip: 'Edit Item',
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                       onPressed: onEdit,
                     ),
                     Semantics(
                       label: '${item.name} availability toggle',
-                      child: Switch(
+                      child: Transform.scale(
+                        scale: 0.8,
+                        child: Switch(
                         value: isAvailable,
-                        activeColor: AppColors.vendorTeal,
-                        activeTrackColor: AppColors.vendorTeal.withValues(alpha: 0.3),
+                        activeColor: AppColors.brandTeal,
+                        activeTrackColor: AppColors.brandTeal.withValues(alpha: 0.3),
                         inactiveThumbColor: AppColors.grey400,
                         inactiveTrackColor: AppColors.grey200,
                         onChanged: (val) {
@@ -337,115 +339,150 @@ class MenuItemTile extends StatelessWidget {
                           }
                         },
                       ),
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
 
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: 6),
             const Divider(height: 1),
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: 6),
 
-            // Quantity Stepper with Quick Chips
+            // Stock: a compact [ - n + ] pill, quick-add chips and (when low / sold out) Restock.
+            // The right-hand group scales down instead of overflowing on narrow screens.
             Row(
               children: [
-                // Decrement button (min 48dp)
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: IconButton.filledTonal(
-                    style: IconButton.styleFrom(
-                      backgroundColor: item.stock > 0 ? AppColors.grey200 : AppColors.grey100,
-                      foregroundColor: item.stock > 0 ? AppColors.brandBrown : AppColors.grey400,
-                    ),
-                    icon: const Icon(Icons.remove, size: 20),
-                    onPressed: item.stock > 0 && onStockChanged != null
-                        ? () {
-                            final next = item.stock - 1;
-                            onStockChanged!(next);
-                            if (next == 0) onToggleAvailability(false);
-                          }
-                        : null,
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey50,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                    border: Border.all(color: AppColors.divider),
                   ),
-                ),
-
-                // Tap number to type directly
-                InkWell(
-                  onTap: () => _showTapToTypeDialog(context),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    width: 54,
-                    height: 48,
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${item.stock}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.brandBrown,
-                        fontSize: 18,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    _miniButton(
+                      icon: Icons.remove,
+                      bg: item.stock > 0 ? AppColors.white : AppColors.grey100,
+                      fg: item.stock > 0 ? AppColors.ink : AppColors.grey400,
+                      onTap: item.stock > 0 && onStockChanged != null
+                          ? () {
+                              final next = item.stock - 1;
+                              onStockChanged!(next);
+                              if (next == 0) onToggleAvailability(false);
+                            }
+                          : null,
+                    ),
+                    // Tap the number to type it
+                    InkWell(
+                      onTap: () => _showTapToTypeDialog(context),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        width: 32,
+                        height: 26,
+                        alignment: Alignment.center,
+                        child: RollingNumber(item.stock,
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, color: AppColors.ink, fontSize: 14)),
                       ),
                     ),
-                  ),
-                ),
-
-                // Increment button (min 48dp)
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: IconButton.filledTonal(
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.15),
-                      foregroundColor: AppColors.primaryOrange,
+                    _miniButton(
+                      icon: Icons.add,
+                      bg: AppColors.primary,
+                      fg: AppColors.white,
+                      onTap: onStockChanged != null
+                          ? () {
+                              final next = item.stock + 1;
+                              onStockChanged!(next);
+                              if (!item.isAvailable) onToggleAvailability(true);
+                            }
+                          : null,
                     ),
-                    icon: const Icon(Icons.add, size: 20),
-                    onPressed: onStockChanged != null
-                        ? () {
-                            final next = item.stock + 1;
-                            onStockChanged!(next);
-                            if (!item.isAvailable) onToggleAvailability(true);
-                          }
-                        : null,
-                  ),
+                  ]),
                 ),
-
-                const Spacer(),
-
-                // Quick add chips +5, +10, +20
-                if (onStockChanged != null) ...[
-                  ...[5, 10, 20].map((quickAdd) => Padding(
-                        padding: const EdgeInsets.only(left: 4.0),
-                        child: ActionChip(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          backgroundColor: AppColors.grey100,
-                          label: Text('+$quickAdd', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                          onPressed: () {
-                            final next = item.stock + quickAdd;
-                            onStockChanged!(next);
-                            if (!item.isAvailable) onToggleAvailability(true);
-                          },
-                        ),
-                      )),
-                ],
-
-                // Restock button on Sold-out or Low items
-                if (item.isLowStock || item.stock == 0 || !item.isAvailable)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6.0),
-                    child: TextButton.icon(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        minimumSize: const Size(0, 36),
-                      ),
-                      icon: const Icon(Icons.inventory, size: 14, color: AppColors.primaryOrange),
-                      label: const Text('Restock', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryOrange)),
-                      onPressed: () => _showRestockSheet(context),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (onStockChanged != null)
+                          for (final quickAdd in const [5, 10, 20])
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: _chip(
+                                label: '+$quickAdd',
+                                onTap: () {
+                                  onStockChanged!(item.stock + quickAdd);
+                                  if (!item.isAvailable) onToggleAvailability(true);
+                                },
+                              ),
+                            ),
+                        if (item.isLowStock || item.stock == 0 || !item.isAvailable)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: _chip(
+                              label: 'Restock',
+                              icon: Icons.inventory_2_outlined,
+                              color: AppColors.primary,
+                              onTap: () => _showRestockSheet(context),
+                            ),
+                          ),
+                      ]),
                     ),
                   ),
+                ),
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// The item's photo: an asset, a web link, or a file picked with the camera/gallery (image_helper.dart).
+  Widget _buildItemPhoto(String? imageUrl) {
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      if (imageUrl.startsWith('assets/')) {
+        return Image.asset(imageUrl, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder());
+      }
+      if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+        return Image.network(imageUrl, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder());
+      }
+      if (!kIsWeb) {
+        return Image.file(File(imageUrl), width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder());
+      }
+    }
+    return _buildPlaceholder();
+  }
+
+  Widget _buildPlaceholder() => Center(child: Image.asset('assets/brand/burger.png', width: 32, height: 32));
+
+  Widget _miniButton({required IconData icon, required Color bg, required Color fg, VoidCallback? onTap}) => Material(
+        color: bg,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(width: 26, height: 26, child: Icon(icon, size: 14, color: fg)),
+        ),
+      );
+
+  Widget _chip({required String label, required VoidCallback onTap, IconData? icon, Color? color}) {
+    final fg = color ?? AppColors.textPrimary;
+    return Material(
+      color: color == null ? AppColors.grey100 : color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (icon != null) ...[Icon(icon, size: 12, color: fg), const SizedBox(width: 4)],
+            Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: fg)),
+          ]),
         ),
       ),
     );

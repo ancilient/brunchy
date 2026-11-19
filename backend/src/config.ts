@@ -38,7 +38,19 @@ const schema = z.object({
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 
-  OTP_DEV_ECHO: bool(false),
+  // Google Sign-In: the OAuth "Web application" client ID(s) the apps request ID tokens for (comma separated).
+  // Empty = Google sign-in is switched off (only the development login works, if enabled).
+  GOOGLE_CLIENT_IDS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
+  // Optional: only these email domains may create student accounts (comma separated, e.g. "sathyabama.ac.in"). Empty = any.
+  STUDENT_EMAIL_DOMAINS: z
+    .string()
+    .default('')
+    .transform((v) => v.split(',').map((s) => s.trim().toLowerCase().replace(/^@/, '')).filter(Boolean)),
+  // Development only: POST /auth/dev-login signs in as a demo student or a stall's vendor without Google.
+  DEV_LOGIN: bool(false),
   IGNORE_CANTEEN_HOURS: bool(false),
   JOBS_ENABLED: bool(true),
   RATE_LIMIT_ENABLED: bool(true),
@@ -69,7 +81,7 @@ if (config.PAYMENT_GATEWAY === 'razorpay' && (!config.RAZORPAY_KEY_ID || !config
   process.exit(1);
 }
 
-if (isProduction && (config.OTP_DEV_ECHO || config.IGNORE_CANTEEN_HOURS)) {
-  console.error('OTP_DEV_ECHO and IGNORE_CANTEEN_HOURS must be false in production.');
+if (isProduction && (config.DEV_LOGIN || config.IGNORE_CANTEEN_HOURS)) {
+  console.error('DEV_LOGIN and IGNORE_CANTEEN_HOURS must be false in production.');
   process.exit(1);
 }

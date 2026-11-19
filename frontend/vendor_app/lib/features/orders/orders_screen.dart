@@ -19,6 +19,8 @@ import 'orders_state.dart';
 import 'widgets/otp_entry_sheet.dart';
 import '../handover/handover_result.dart';
 import '../handover/handover_service.dart';
+import '../../core/widgets/sliding_tabs.dart';
+import '../../core/widgets/app_dialog.dart';
 
 class OrdersScreen extends StatelessWidget {
   const OrdersScreen({super.key});
@@ -29,7 +31,7 @@ class OrdersScreen extends StatelessWidget {
       builder: (context, state) {
         if (state is OrdersInitial || state is OrdersLoading) {
           return const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryOrange));
+              child: CircularProgressIndicator(color: AppColors.primary));
         }
         if (state is OrdersError) {
           return _ErrorState(
@@ -85,18 +87,67 @@ class _AcceptingOrdersToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<OrdersCubit>();
-    final accepting = cubit.acceptingOrders;
-    return Container(color: AppColors.cardWhite, padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4), child: Row(children: [
-      Icon(accepting ? Icons.check_circle : Icons.pause_circle, color: accepting ? AppColors.successGreen : AppColors.errorRed),
-      const SizedBox(width: AppSpacing.sm),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Accepting orders', style: TextStyle(fontWeight: FontWeight.bold)), Text(accepting ? 'ON - students can order' : 'OFF - students see Not taking orders', style: TextStyle(fontSize: 12, color: accepting ? AppColors.successGreen : AppColors.errorRed))])),
-      Switch(value: accepting, onChanged: (value) async {
-        if (value) { await cubit.setAcceptingOrders(true); return; }
-        if (!context.mounted) return;
-        final stop = await showModalBottomSheet<bool>(context: context, useRootNavigator: true, builder: (sheet) => SafeArea(child: Padding(padding: const EdgeInsets.all(AppSpacing.lg), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [Text('Stop new orders?', style: Theme.of(sheet).textTheme.titleLarge), Text('${loaded.newOrderCount} queued and ${loaded.preparingCount} preparing orders will continue.'), const SizedBox(height: AppSpacing.md), ElevatedButton(onPressed: () => Navigator.of(sheet).pop(true), child: const Text('Stop new orders')), TextButton(onPressed: () => Navigator.of(sheet).pop(false), child: const Text('Cancel'))]))));
-        if (stop == true) await cubit.setAcceptingOrders(false);
-      }),
-    ]));
+    final accepting = loaded.acceptingOrders;
+    return Container(
+        color: AppColors.cardWhite,
+        padding:
+            const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+        child: Row(children: [
+          Icon(accepting ? Icons.check_circle : Icons.pause_circle,
+              color: accepting ? AppColors.successGreen : AppColors.errorRed),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                const Text('Accepting orders',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                    accepting
+                        ? 'ON - students can order'
+                        : 'OFF - students see Not taking orders',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: accepting
+                            ? AppColors.successGreen
+                            : AppColors.errorRed))
+              ])),
+          Switch(
+              value: accepting,
+              onChanged: (value) async {
+                if (value) {
+                  await cubit.setAcceptingOrders(true);
+                  return;
+                }
+                if (!context.mounted) return;
+                final stop = await showModalBottomSheet<bool>(
+                    context: context,
+                    useRootNavigator: true,
+                    builder: (sheet) => SafeArea(
+                        child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text('Stop new orders?',
+                                      style:
+                                          Theme.of(sheet).textTheme.titleLarge),
+                                  Text(
+                                      '${loaded.newOrderCount} queued and ${loaded.preparingCount} preparing orders will continue.'),
+                                  const SizedBox(height: AppSpacing.md),
+                                  ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.of(sheet).pop(true),
+                                      child: const Text('Stop new orders')),
+                                  TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(sheet).pop(false),
+                                      child: const Text('Cancel'))
+                                ]))));
+                if (stop == true) await cubit.setAcceptingOrders(false);
+              }),
+        ]));
   }
 }
 
@@ -110,7 +161,7 @@ class _CapacityGateBar extends StatelessWidget {
       // Show confirmation dialog before stopping new orders
       showDialog(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppDialog(
           title: const Text('Stop New Orders?'),
           content: const Text(
             'Setting max concurrent orders to 0 will stop new incoming orders for your stall. Existing orders can still be prepared.',
@@ -147,14 +198,14 @@ class _CapacityGateBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.speed, size: 20, color: AppColors.primaryOrange),
+              const Icon(Icons.speed, size: 20, color: AppColors.primary),
               const SizedBox(width: 6),
               Text(
                 'Max Concurrent Orders: ${loaded.maxCapacity}',
                 style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    color: AppColors.brandBrown),
+                    color: AppColors.ink),
               ),
               const Spacer(),
             ],
@@ -165,10 +216,10 @@ class _CapacityGateBar extends StatelessWidget {
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
               activeTrackColor: loaded.maxCapacity == 0
                   ? AppColors.errorRed
-                  : AppColors.primaryOrange,
+                  : AppColors.primary,
               thumbColor: loaded.maxCapacity == 0
                   ? AppColors.errorRed
-                  : AppColors.primaryOrange,
+                  : AppColors.primary,
             ),
             child: Slider(
               value: loaded.maxCapacity.toDouble(),
@@ -201,8 +252,8 @@ class _OverloadBanner extends StatelessWidget {
         fg = AppColors.warningAmber;
         icon = Icons.hourglass_bottom;
       case 2:
-        bg = AppColors.secondaryOrange.withValues(alpha: 0.15);
-        fg = AppColors.secondaryOrange;
+        bg = AppColors.attention.withValues(alpha: 0.15);
+        fg = AppColors.attention;
         icon = Icons.warning_amber_rounded;
       case 3:
       default:
@@ -253,20 +304,19 @@ class _MakeListBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: AppColors.brandBrown,
+      color: AppColors.ink,
       padding:
           const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            const Icon(Icons.soup_kitchen,
-                color: AppColors.accentYellow, size: 18),
+            const Icon(Icons.soup_kitchen, color: AppColors.accent, size: 18),
             const SizedBox(width: 6),
             const Text(
               'MAKE NOW:',
               style: TextStyle(
-                  color: AppColors.accentYellow,
+                  color: AppColors.accent,
                   fontWeight: FontWeight.bold,
                   fontSize: 13),
             ),
@@ -318,13 +368,13 @@ class _BatchActionBar extends StatelessWidget {
             style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
-                color: AppColors.brandBrown),
+                color: AppColors.ink),
           ),
           const Spacer(),
           if (loaded.activeFilter == OrderFilter.newOrders)
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
+                backgroundColor: AppColors.primary,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 minimumSize: const Size(0, 36),
@@ -336,7 +386,10 @@ class _BatchActionBar extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: Colors.white)),
-              onPressed: () async { await context.read<OrdersCubit>().fireBatch(orderIds); if (context.mounted) _showResult(context); },
+              onPressed: () async {
+                await context.read<OrdersCubit>().fireBatch(orderIds);
+                if (context.mounted) _showResult(context);
+              },
             ),
           if (loaded.activeFilter == OrderFilter.preparing)
             ElevatedButton.icon(
@@ -352,7 +405,10 @@ class _BatchActionBar extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: Colors.white)),
-              onPressed: () async { await context.read<OrdersCubit>().readyBatch(orderIds); if (context.mounted) _showResult(context); },
+              onPressed: () async {
+                await context.read<OrdersCubit>().readyBatch(orderIds);
+                if (context.mounted) _showResult(context);
+              },
             ),
         ],
       ),
@@ -362,7 +418,8 @@ class _BatchActionBar extends StatelessWidget {
   void _showResult(BuildContext context) {
     final state = context.read<OrdersCubit>().state;
     if (state is OrderActionError && state.orderId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(state.message)));
     }
   }
 }
@@ -401,38 +458,16 @@ class _FilterTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const filters = OrderFilter.values;
     return Container(
       color: AppColors.cardWhite,
-      child: Row(
-        children: OrderFilter.values.map((f) {
-          final active = f == loaded.activeFilter;
-          return Expanded(
-              child: GestureDetector(
-            onTap: () => context.read<OrdersCubit>().changeFilter(f),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                border: Border(
-                    bottom: BorderSide(
-                        color: active
-                            ? AppColors.primaryOrange
-                            : Colors.transparent,
-                        width: 2.5)),
-              ),
-              child: Text(
-                _tabTitle(f),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: active
-                      ? AppColors.primaryOrange
-                      : AppColors.textSecondary,
-                  fontWeight: active ? FontWeight.bold : FontWeight.w500,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ));
-        }).toList(),
+      child: SlidingTabs(
+        style: SlidingTabsStyle.underline,
+        height: 40,
+        fontSize: 13,
+        labels: [for (final f in filters) _tabTitle(f)],
+        selected: filters.indexOf(loaded.activeFilter),
+        onChanged: (i) => context.read<OrdersCubit>().changeFilter(filters[i]),
       ),
     );
   }
@@ -529,7 +564,7 @@ class _OrderCardState extends State<_OrderCard> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.primaryOrange,
+                color: AppColors.primary,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -550,7 +585,7 @@ class _OrderCardState extends State<_OrderCard> {
                     order.studentFirstName,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.brandBrown,
+                          color: AppColors.ink,
                         ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -571,7 +606,7 @@ class _OrderCardState extends State<_OrderCard> {
                 Text(
                   CurrencyFormatter.format(order.totalAmount),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.primaryOrange,
+                        color: AppColors.primary,
                         fontWeight: FontWeight.bold,
                       ),
                 ),
@@ -601,13 +636,13 @@ class _OrderCardState extends State<_OrderCard> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.secondaryOrange.withValues(alpha: 0.12),
+                color: AppColors.attention.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 'Queue #${widget.queuePosition} • Est. wait ~${(widget.queuePosition! * 2)} min',
                 style: const TextStyle(
-                  color: AppColors.secondaryOrange,
+                  color: AppColors.attention,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -631,8 +666,7 @@ class _OrderCardState extends State<_OrderCard> {
             const SizedBox(height: AppSpacing.sm),
             if (isLoading)
               const Center(
-                  child:
-                      CircularProgressIndicator(color: AppColors.primaryOrange))
+                  child: CircularProgressIndicator(color: AppColors.primary))
             else
               Row(children: [
                 const Expanded(
@@ -658,8 +692,7 @@ class _OrderCardState extends State<_OrderCard> {
             const SizedBox(height: AppSpacing.sm),
             if (isLoading)
               const Center(
-                  child:
-                      CircularProgressIndicator(color: AppColors.primaryOrange))
+                  child: CircularProgressIndicator(color: AppColors.primary))
             else
               SizedBox(
                 width: double.infinity,
@@ -674,13 +707,13 @@ class _OrderCardState extends State<_OrderCard> {
             const SizedBox(height: AppSpacing.xs),
             Row(children: [
               const Icon(Icons.check_circle,
-                  color: AppColors.vendorTeal, size: 16),
+                  color: AppColors.brandTeal, size: 16),
               const SizedBox(width: AppSpacing.xs),
               Text('Ready • Waiting for student',
                   style: Theme.of(context)
                       .textTheme
                       .bodyMedium
-                      ?.copyWith(color: AppColors.vendorTeal)),
+                      ?.copyWith(color: AppColors.brandTeal)),
             ]),
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
@@ -690,7 +723,7 @@ class _OrderCardState extends State<_OrderCard> {
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.successGreen),
                 icon: const Icon(Icons.verified_outlined, color: Colors.white),
-                    onPressed: () => _openOtpSheet(context, order),
+                onPressed: () => _openOtpSheet(context, order),
                 label: const Text('Hand Over',
                     style: TextStyle(
                         fontSize: 16,
@@ -738,7 +771,13 @@ class _OrderCardState extends State<_OrderCard> {
       shape: const RoundedRectangleBorder(
           borderRadius:
               BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusLg))),
-      builder: (_) => OtpEntrySheet(order: order, stallId: sl<LocalStorageService>().getStallIdDirect() ?? order.stallId, handoverService: HandoverService(sl<OrderRepository>()), onSuccess: (sheetResult) => Navigator.of(context, rootNavigator: true).pop(sheetResult)),
+      builder: (_) => OtpEntrySheet(
+          order: order,
+          stallId:
+              sl<LocalStorageService>().getStallIdDirect() ?? order.stallId,
+          handoverService: HandoverService(sl<OrderRepository>()),
+          onSuccess: (sheetResult) =>
+              Navigator.of(context, rootNavigator: true).pop(sheetResult)),
     );
     if (!context.mounted || result == null) return;
     if (result.isSuccess) {
@@ -746,7 +785,10 @@ class _OrderCardState extends State<_OrderCard> {
       if (!context.mounted) return;
       await HapticFeedback.mediumImpact();
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Order #${order.billNumber} handed over to ${order.studentFirstName}'), backgroundColor: AppColors.successGreen));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Order #${order.billNumber} handed over to ${order.studentFirstName}'),
+          backgroundColor: AppColors.successGreen));
     }
   }
 
@@ -759,7 +801,7 @@ class _OrderCardState extends State<_OrderCard> {
         CancelReason? reason;
         var isSubmitting = false;
         return StatefulBuilder(
-            builder: (ctx, setState) => AlertDialog(
+            builder: (ctx, setState) => AppDialog(
                   title: const Text('Reject Order'),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
                     const Text('Select a reason (optional):'),
@@ -780,16 +822,23 @@ class _OrderCardState extends State<_OrderCard> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.errorRed),
-                      onPressed: isSubmitting ? null : () async {
-                        setState(() => isSubmitting = true);
-                        final error = await ordersCubit.rejectOrder(orderId, reason: reason);
-                        if (!ctx.mounted) return;
-                        if (Navigator.of(dialogContext).canPop()) {
-                          Navigator.of(dialogContext).pop(_RejectResult(error: error));
-                        }
-                      },
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              setState(() => isSubmitting = true);
+                              final error = await ordersCubit
+                                  .rejectOrder(orderId, reason: reason);
+                              if (!ctx.mounted) return;
+                              if (Navigator.of(dialogContext).canPop()) {
+                                Navigator.of(dialogContext)
+                                    .pop(_RejectResult(error: error));
+                              }
+                            },
                       child: isSubmitting
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator())
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator())
                           : const Text('Reject & Refund'),
                     ),
                   ],
@@ -803,7 +852,8 @@ class _OrderCardState extends State<_OrderCard> {
         : result.error!;
     messenger.showSnackBar(SnackBar(
       content: Text(message),
-      backgroundColor: result.error == null ? AppColors.successGreen : AppColors.errorRed,
+      backgroundColor:
+          result.error == null ? AppColors.successGreen : AppColors.errorRed,
     ));
   }
 }
@@ -841,7 +891,7 @@ class _TimerBar extends StatelessWidget {
       const SizedBox(height: AppSpacing.xs),
       LinearProgressIndicator(
         value: frac,
-        color: isUrgent ? AppColors.errorRed : AppColors.primaryOrange,
+        color: isUrgent ? AppColors.errorRed : AppColors.primary,
         backgroundColor: AppColors.grey200,
       ),
     ]);

@@ -13,14 +13,14 @@ project_type: app
 migration:
   platforms:
     - platform: root
-      create_revision: ab2912035e160d9cad6306df307576da6128ebdb
-      base_revision: ab2912035e160d9cad6306df307576da6128ebdb
-    - platform: ios
       create_revision: c519ee916eaeb88923e67befb89c0f1dabfa83e6
       base_revision: c519ee916eaeb88923e67befb89c0f1dabfa83e6
-    - platform: web
+    - platform: ios
       create_revision: ab2912035e160d9cad6306df307576da6128ebdb
       base_revision: ab2912035e160d9cad6306df307576da6128ebdb
+    - platform: web
+      create_revision: c519ee916eaeb88923e67befb89c0f1dabfa83e6
+      base_revision: c519ee916eaeb88923e67befb89c0f1dabfa83e6
 
   # User provided section
 

@@ -69,7 +69,7 @@ class AnalyticsMetricCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
-                Icon(icon, size: 20, color: AppColors.primaryOrange),
+                Icon(icon, size: 20, color: AppColors.primary),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -80,7 +80,7 @@ class AnalyticsMetricCard extends StatelessWidget {
                 value,
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.brandBrown,
+                  color: AppColors.ink,
                 ),
               ),
             ),

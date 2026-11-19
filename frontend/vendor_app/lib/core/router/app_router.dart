@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../widgets/page_transitions.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../injection_container.dart';
 import '../../services/local_storage_service.dart';
@@ -38,55 +39,58 @@ GoRouter buildRouter() {
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, __) => const SplashScreen(),
+        pageBuilder: (_, state) => sharedAxisPage(state, const SplashScreen()),
       ),
       GoRoute(
         path: '/login',
-        builder: (_, __) => BlocProvider(
+        pageBuilder: (_, state) => sharedAxisPage(state, BlocProvider(
           create: (_) =>
               AuthCubit(sl<AuthRepository>(), sl<LocalStorageService>()),
           child: const LoginScreen(),
-        ),
+        )),
       ),
       GoRoute(
         path: '/choose-stall',
-        builder: (_, __) => BlocProvider(
+        pageBuilder: (_, state) => sharedAxisPage(state, BlocProvider(
           create: (_) => ChooseStallCubit(sl<AuthRepository>()),
           child: const ChooseStallScreen(),
-        ),
+        )),
       ),
       GoRoute(
         path: '/order/:id',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (_, state) =>
-            OrderDetailScreen(orderId: state.pathParameters['id']!),
+        pageBuilder: (_, state) =>
+            sharedAxisPage(state, OrderDetailScreen(orderId: state.pathParameters['id']!)),
       ),
       GoRoute(
         path: '/past-orders',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (_, __) => BlocProvider.value(
+        pageBuilder: (_, state) => sharedAxisPage(state, BlocProvider.value(
           value: sl<OrdersCubit>(),
           child: const PastOrdersScreen(),
-        ),
+        )),
       ),
       GoRoute(
         path: '/handover',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (_, state) =>
-            HandoverScreen(initialCode: state.uri.queryParameters['code']),
+        pageBuilder: (_, state) =>
+            sharedAxisPage(state, HandoverScreen(initialCode: state.uri.queryParameters['code'])),
       ),
       GoRoute(
         path: '/settings',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (_, __) => BlocProvider(
+        pageBuilder: (_, state) => sharedAxisPage(state, BlocProvider(
           create: (_) =>
               AuthCubit(sl<AuthRepository>(), sl<LocalStorageService>()),
           child: const SettingsScreen(),
-        ),
+        )),
       ),
-      StatefulShellRoute.indexedStack(
+      StatefulShellRoute(
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state, shell) => MultiBlocProvider(
+        // Tabs slide like the student app (see page_transitions.dart); each tab keeps its state.
+        navigatorContainerBuilder: (context, shell, children) =>
+            AnimatedBranchContainer(currentIndex: shell.currentIndex, children: children),
+        pageBuilder: (context, state, shell) => sharedAxisPage(state, MultiBlocProvider(
           providers: [
             BlocProvider.value(value: sl<OrdersCubit>()),
             BlocProvider.value(value: sl<MenuCubit>()),
@@ -95,7 +99,7 @@ GoRouter buildRouter() {
             BlocProvider.value(value: sl<StallControlCubit>()),
           ],
           child: HomeScreen(shell: shell),
-        ),
+        )),
         branches: [
           StatefulShellBranch(
             navigatorKey: _shellNavigatorKey,
