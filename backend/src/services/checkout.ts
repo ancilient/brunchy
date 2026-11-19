@@ -231,9 +231,14 @@ export async function ensurePaymentOrder(orderId: number) {
 
 /** What the app needs after checkout: the order, any "only N left" shortages, and how to pay. */
 export async function describeCheckout(orderId: number) {
-  const order = await loadOrder(pool, orderId);
+  let order = await loadOrder(pool, orderId);
   if (!order) throw notFound('ORDER_NOT_FOUND', 'Order not found');
-  const shortages = order.gatewayOrderRef ? [] : await shortagesOf(orderId);
+  let shortages = order.gatewayOrderRef ? [] : await shortagesOf(orderId);
+  if (order.status === 'pending' && !order.gatewayOrderRef && shortages.length === 0) {
+    await ensurePaymentOrder(orderId);
+    order = (await loadOrder(pool, orderId)) ?? order;
+    shortages = order.gatewayOrderRef ? [] : await shortagesOf(orderId);
+  }
   return {
     order,
     shortages,

@@ -427,7 +427,15 @@ class AppState extends ChangeNotifier {
         notifyListeners();
         return const CheckoutResult(success: false, shortage: true);
       }
-      _startHold(order, r['payment'] as Map<String, dynamic>?);
+      final payment = r['payment'] as Map<String, dynamic>?;
+      if (payment == null) {
+        unawaited(_cancelOnServer(order.orderId));
+        return const CheckoutResult(
+          success: false,
+          message: 'Could not start payment (Razorpay did not respond). Check your internet and try again.',
+        );
+      }
+      _startHold(order, payment);
       _changed();
       return const CheckoutResult(success: true);
     } on ApiException catch (e) {

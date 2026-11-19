@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
+import { AppError } from '../errors.js';
+import { logger } from '../logger.js';
 import type { PaymentEvent, PaymentGateway } from './gateway.js';
 
 const ORDERS_URL = 'https://api.razorpay.com/v1/orders';
@@ -28,33 +30,64 @@ export function verifyCheckoutSignature(orderId: string, paymentId: string, sign
  * Razorpay Orders API + webhook/checkout verification.
  * Test mode uses rzp_test_* keys from the Razorpay dashboard; no real money moves.
  */
+async function razorpayPost(body: Record<string, unknown>) {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(ORDERS_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: basicAuth(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(25_000),
+      });
+      const json = (await res.json()) as { id?: string; error?: { description?: string; reason?: string } };
+      if (res.status === 401 || res.status === 403) {
+        throw new AppError(502, 'PAYMENT_CONFIG_INVALID', 'Razorpay rejected the API keys. Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend/.env');
+      }
+      if (!res.ok || !json.id) {
+        const detail = json.error?.description ?? json.error?.reason ?? `HTTP ${res.status}`;
+        throw new AppError(502, 'PAYMENT_GATEWAY_ERROR', `Razorpay could not start payment: ${detail}`);
+      }
+      return json;
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      lastErr = err;
+      if (attempt === 0) {
+        logger.warn({ err, attempt }, 'Razorpay API call failed, retrying');
+        continue;
+      }
+    }
+  }
+  logger.error({ err: lastErr }, 'Razorpay API unreachable');
+  throw new AppError(
+    503,
+    'PAYMENT_GATEWAY_UNAVAILABLE',
+    'Could not reach Razorpay. Check your internet connection and try checkout again.',
+  );
+}
+
 export const razorpayGateway: PaymentGateway = {
   name: 'razorpay',
 
   async createOrder({ orderId, amountPaise }) {
-    const res = await fetch(ORDERS_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: basicAuth(),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        amount: amountPaise,
-        currency: 'INR',
-        receipt: `brunchy_${orderId}`,
-        notes: { brunchyOrderId: String(orderId) },
-      }),
-    });
-    const body = (await res.json()) as { id?: string; error?: { description?: string } };
-    if (!res.ok || !body.id) {
-      throw new Error(body.error?.description ?? `Razorpay order create failed (${res.status})`);
+    if (amountPaise < 100) {
+      throw new AppError(400, 'PAYMENT_AMOUNT_TOO_LOW', 'Order total is too low to pay online (minimum ₹1).');
     }
+    const json = await razorpayPost({
+      amount: amountPaise,
+      currency: 'INR',
+      receipt: `brunchy_${orderId}`,
+      notes: { brunchyOrderId: String(orderId) },
+    });
     return {
-      gatewayOrderRef: body.id,
+      gatewayOrderRef: json.id!,
       clientPayload: {
         gateway: 'razorpay',
         keyId: config.RAZORPAY_KEY_ID,
-        gatewayOrderRef: body.id,
+        gatewayOrderRef: json.id,
         amountPaise,
         currency: 'INR',
         name: 'Brunchy',

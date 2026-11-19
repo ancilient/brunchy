@@ -14,6 +14,11 @@ startJobs();
 // 0.0.0.0 so a phone on the same Wi-Fi (or via `adb reverse`) can reach it.
 server.listen(config.PORT, '0.0.0.0', () => {
   logger.info(`Brunchy API listening on http://localhost:${config.PORT}/api/v1 (${config.NODE_ENV})`);
+  if (config.PAYMENT_GATEWAY === 'razorpay') {
+    const id = config.RAZORPAY_KEY_ID;
+    const mode = id.startsWith('rzp_live_') ? 'live' : id.startsWith('rzp_test_') ? 'test' : 'unknown-key';
+    logger.info(`Payments: Razorpay (${mode})`);
+  }
 });
 
 async function shutdown(signal: string) {
