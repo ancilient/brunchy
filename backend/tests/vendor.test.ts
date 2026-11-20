@@ -126,8 +126,27 @@ describe('vendor board and handover', () => {
     const r = await client.patch(`/vendor/bills/${bill.id}/status`, { status: 'rejected', reason: 'KITCHEN_ISSUE' }, burger());
     expect(r.body.bill.status).toBe('rejected');
     expect(await stockOf(102)).toBe(before + 2);
+    // The stall's fault, so the student also gets this bill's share of the platform fee back.
+    expect(bill.platformFee).toBeGreaterThan(0);
+    const paid = Math.round((bill.total + bill.platformFee) * 100) / 100;
     const refund = await one(pool, 'SELECT reason_code, amount, status FROM refunds WHERE stall_order_id = ?', [bill.id]);
-    expect(refund).toMatchObject({ reason_code: 'KITCHEN_ISSUE', amount: bill.total, status: 'requested' });
+    expect(refund).toMatchObject({ reason_code: 'KITCHEN_ISSUE', amount: paid, status: 'requested' });
+    expect(r.body.bill.refundedAmount).toBe(paid);
+  });
+
+  it("splits the platform fee across an order's bills, adding up to exactly what was charged", async () => {
+    const order = await placePaidOrder(client, studentToken(), [
+      { productId: '102', qty: 1 },
+      { productId: '201', qty: 3 },
+    ]);
+    expect(order.bills.length).toBe(2);
+    const feePaise = order.bills.reduce((s: number, b: { platformFee: number }) => s + Math.round(b.platformFee * 100), 0);
+    expect(feePaise).toBe(Math.round(order.additionalFee * 100));
+    const paidPaise = order.bills.reduce(
+      (s: number, b: { total: number; platformFee: number }) => s + Math.round(b.total * 100) + Math.round(b.platformFee * 100),
+      0,
+    );
+    expect(paidPaise).toBe(Math.round(order.total * 100));
   });
 
   it('a student can cancel a bill before it is being prepared, not after', async () => {
@@ -135,6 +154,10 @@ describe('vendor board and handover', () => {
     const bill = order.bills[0];
     const ok = await client.post(`/bills/${bill.id}/cancel`, {}, studentToken());
     expect(ok.body.bill.status).toBe('cancelled');
+    // The student's own choice: the item total is refunded, the platform fee is kept.
+    expect(ok.body.bill.refundedAmount).toBe(bill.total);
+    const refund = await one(pool, 'SELECT amount FROM refunds WHERE stall_order_id = ?', [bill.id]);
+    expect(refund?.amount).toBe(bill.total);
     const ready = await readyBill();
     const late = await client.post(`/bills/${ready.id}/cancel`, {}, studentToken());
     expect(late.body.error.code).toBe('CANNOT_CANCEL');

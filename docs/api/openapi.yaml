@@ -457,7 +457,9 @@ components:
         studentFirstName: { type: string }
         subtotal: { type: number }
         tax: { type: number }
-        total: { type: number }
+        total: { type: number, description: 'Item total for this stall (what the stall earns)' }
+        platformFee: { type: number, description: "This bill's share of the order's platform fee; the student paid total + platformFee" }
+        refundedAmount: { type: number, description: 'Refunded for this bill. Includes the platform fee share only when the stall rejected the bill or stopped in an emergency' }
         items: { type: array, items: { $ref: '#/components/schemas/BillItem' } }
         createdAt: { type: string, format: date-time }
         estimatedReadyAt: { type: string, format: date-time, nullable: true }

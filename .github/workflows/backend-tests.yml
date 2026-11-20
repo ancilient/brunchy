@@ -18,7 +18,7 @@ jobs:
           MYSQL_DATABASE: brunchy_test
           MYSQL_USER: brunchy
           MYSQL_PASSWORD: brunchy
-        ports: ['3306:3306']
+        ports: ['3307:3306']   # same host port as docker-compose.yml
         options: >-
           --health-cmd="mysqladmin ping -h localhost -uroot -pbrunchy_root"
           --health-interval=5s --health-timeout=5s --health-retries=20

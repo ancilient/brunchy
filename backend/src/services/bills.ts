@@ -3,7 +3,7 @@ import { IST_TODAY, exec, one, pool, rows, withTx } from '../db/pool.js';
 import { AppError, badRequest, conflict, forbidden, notFound } from '../errors.js';
 import type { AuthUser } from '../middleware/auth.js';
 import { publishBills } from '../realtime.js';
-import { effectiveStallStatus, iso } from '../util.js';
+import { effectiveStallStatus, iso, toPaise, toRupees } from '../util.js';
 import { audit } from './audit.js';
 import { bustMenuCache } from './menu.js';
 import { OPEN_BILL_STATUSES, loadBills } from './orders.js';
@@ -180,7 +180,8 @@ export async function setBillStatus(user: AuthUser, billId: number, input: { sta
         orderId: bill.order_id,
         billId,
         paymentId: await successfulPaymentId(conn, bill.order_id),
-        amount: bill.total,
+        // The stall turned it down, so the student also gets this bill's share of the platform fee back.
+        amount: toRupees(toPaise(bill.total) + toPaise(bill.platform_fee)),
         reason: input.reason!,
         requestedBy: user.id,
       });
@@ -292,9 +293,9 @@ export async function setStallStatus(
       await exec(conn, "UPDATE stalls SET status = 'open', paused_until = NULL WHERE stall_id = ?", [stallId]);
     }
     if (input.action === 'emergency') {
-      const notStarted = await rows<{ stall_order_id: number; order_id: number; total: number }>(
+      const notStarted = await rows<{ stall_order_id: number; order_id: number; total: number; platform_fee: number }>(
         conn,
-        "SELECT stall_order_id, order_id, total FROM stall_orders WHERE stall_id = ? AND status = 'new' ORDER BY stall_order_id FOR UPDATE",
+        "SELECT stall_order_id, order_id, total, platform_fee FROM stall_orders WHERE stall_id = ? AND status = 'new' ORDER BY stall_order_id FOR UPDATE",
         [stallId],
       );
       for (const b of notStarted) {
@@ -308,7 +309,7 @@ export async function setStallStatus(
           orderId: b.order_id,
           billId: b.stall_order_id,
           paymentId: await successfulPaymentId(conn, b.order_id),
-          amount: b.total,
+          amount: toRupees(toPaise(b.total) + toPaise(b.platform_fee)), // stall's fault: platform fee share too
           reason: 'STALL_EMERGENCY',
           requestedBy: user.id,
         });
@@ -353,7 +354,7 @@ export async function cancelBillByStudent(user: AuthUser, billId: number) {
       orderId: bill.order_id,
       billId,
       paymentId: await successfulPaymentId(conn, bill.order_id),
-      amount: bill.total,
+      amount: bill.total, // the student's own choice: the platform fee is kept
       reason: 'CANCELLED_BY_USER',
       requestedBy: user.id,
     });

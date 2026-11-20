@@ -107,6 +107,7 @@ class StallBill {
     required this.subtotal, required this.tax, required this.total, required this.status,
     required this.estimatedTimeMins, this.estimatedReadyTime, required this.createdAt,
     this.cancelReason, this.isBlurredSealed = false, required this.items,
+    this.platformFee = 0, this.refundedAmount = 0,
   });
   final int stallOrderId;
   final int orderId;
@@ -118,7 +119,14 @@ class StallBill {
   String pickupCode;
   final double subtotal;
   final double tax;
+  /// Item total for this stall (what the stall earns).
   final double total;
+  /// This bill's share of the order's platform fee.
+  final double platformFee;
+  /// What has been refunded for this bill (from the server; includes the fee share only if the stall rejected it).
+  final double refundedAmount;
+  /// What the student actually paid for this bill.
+  double get amountPaid => ((total + platformFee) * 100).round() / 100;
   /// 'awaiting_payment' | 'waiting_for_acceptance' | 'accepted' | 'preparing' | 'ready' | 'completed' | 'collected' | 'refunded' | 'rejected' | 'expired'
   String status;
   int estimatedTimeMins;
@@ -131,7 +139,7 @@ class StallBill {
   Map<String, dynamic> toJson() => {
         'stall_order_id': stallOrderId, 'order_id': orderId, 'stall_id': stallId, 'canteen_id': canteenId,
         'stall_name': stallName, 'bill_prefix': billPrefix, 'bill_no': billNo, 'pickup_code': pickupCode,
-        'subtotal': subtotal, 'tax': tax, 'total': total, 'status': status,
+        'subtotal': subtotal, 'tax': tax, 'total': total, 'platform_fee': platformFee, 'refunded_amount': refundedAmount, 'status': status,
         'estimated_time_mins': estimatedTimeMins, 'estimated_ready_time': estimatedReadyTime,
         'created_at': createdAt.toIso8601String(), 'cancel_reason': cancelReason,
         'is_blurred_sealed': isBlurredSealed, 'items': items.map((i) => i.toJson()).toList(),
@@ -148,6 +156,8 @@ class StallBill {
         subtotal: (j['subtotal'] as num).toDouble(),
         tax: (j['tax'] as num).toDouble(),
         total: (j['total'] as num).toDouble(),
+        platformFee: (j['platform_fee'] as num?)?.toDouble() ?? 0,
+        refundedAmount: (j['refunded_amount'] as num?)?.toDouble() ?? 0,
         status: j['status'] as String,
         estimatedTimeMins: (j['estimated_time_mins'] as num?)?.toInt() ?? 5,
         estimatedReadyTime: j['estimated_ready_time'] as String?,

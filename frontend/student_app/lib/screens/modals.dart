@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../api/api_client.dart';
+import '../payments/payment_mode.dart';
 import '../state/app_scope.dart';
 import '../state/app_state.dart';
 import '../ui/icons.dart';
@@ -134,7 +135,7 @@ class PaySheetState extends State<PaySheet> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 txt('Pay securely with Razorpay', 14, w: w7),
                 const SizedBox(height: 6),
-                txt('UPI, cards, and netbanking — test mode keys (no real money).', 12, color: C.slate500),
+                txt(paymentModeNote(s.pendingPayment), 12, color: C.slate500),
                 const SizedBox(height: 10),
                 txt('Hold expires in $mins:$secs', 11, w: w6, color: C.brand),
               ]),

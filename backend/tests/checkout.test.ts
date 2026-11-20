@@ -47,9 +47,9 @@ describe('checkout and stock reservation', () => {
     const confirmed = await client.post(`/checkout/${r.body.order.id}/confirm-partial`, { lines: [{ productId: '104', action: 'take_available' }] }, studentToken());
     expect(confirmed.status).toBe(200);
     expect(confirmed.body.order.bills[0].items[0].quantity).toBe(3);
-    // 3 x ₹40 = 120, 5% GST = 6, convenience fee 5
-    expect(confirmed.body.order.total).toBe(131);
-    expect(confirmed.body.payment.amountPaise).toBe(13100);
+    // 3 x ₹40 = 120, platform fee 2.36% = 2.83 (no separate stall GST or convenience fee)
+    expect(confirmed.body.order.total).toBe(122.83);
+    expect(confirmed.body.payment.amountPaise).toBe(12283);
   });
 
   it('removing a short line releases its hold at once', async () => {
@@ -74,7 +74,7 @@ describe('checkout and stock reservation', () => {
       studentToken(),
     );
     expect(r.status).toBe(201);
-    expect(r.body.order.total).toBe(105); // 2 x ₹50 (0% GST) + ₹5 fee
+    expect(r.body.order.total).toBe(102.36); // 2 x ₹50 + 2.36% platform fee
   });
 
   it('returns the same order when the same request is retried (double tap)', async () => {

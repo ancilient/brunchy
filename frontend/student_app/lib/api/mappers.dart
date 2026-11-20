@@ -75,6 +75,8 @@ StallBill billFromApi(Map<String, dynamic> j) {
     subtotal: _num(j['subtotal']),
     tax: _num(j['tax']),
     total: _num(j['total']),
+    platformFee: _num(j['platformFee']),
+    refundedAmount: _num(j['refundedAmount']),
     status: status,
     estimatedTimeMins: (accepted != null && eta != null) ? eta.difference(accepted).inMinutes.clamp(1, 120) : 5,
     estimatedReadyTime: eta == null ? null : formatTime2Digit(eta),

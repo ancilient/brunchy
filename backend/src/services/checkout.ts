@@ -48,8 +48,13 @@ function mergeLines(items: CartLine[]) {
 
 /** Recomputes every bill and the order header from their items (all money on the server, in paise). */
 export async function recalcTotals(conn: PoolConnection, orderId: number) {
-  const bills = await rows<{ stall_order_id: number }>(conn, 'SELECT stall_order_id FROM stall_orders WHERE order_id = ?', [orderId]);
+  const bills = await rows<{ stall_order_id: number }>(
+    conn,
+    'SELECT stall_order_id FROM stall_orders WHERE order_id = ? ORDER BY stall_order_id',
+    [orderId],
+  );
   let subtotal = 0;
+  const billSubtotals: { id: number; paise: number }[] = [];
   for (const bill of bills) {
     const items = await rows<{ price: number; quantity: number }>(
       conn,
@@ -58,15 +63,23 @@ export async function recalcTotals(conn: PoolConnection, orderId: number) {
     );
     const billSubtotal = items.reduce((s, i) => s + toPaise(i.price) * i.quantity, 0);
     subtotal += billSubtotal;
-    // No separate stall GST or convenience fee — only item subtotal on the bill.
-    await exec(conn, 'UPDATE stall_orders SET subtotal = ?, tax = 0, total = ? WHERE stall_order_id = ?', [
-      toRupees(billSubtotal),
-      toRupees(billSubtotal),
-      bill.stall_order_id,
-    ]);
+    billSubtotals.push({ id: bill.stall_order_id, paise: billSubtotal });
   }
   // Platform fee = % of item total (rate already covers platform fee + GST).
   const platformFee = Math.round((subtotal * config.PLATFORM_FEE_PERCENT) / 100);
+  // Split it across the bills by item subtotal; the last bill takes the rounding so the shares add up exactly.
+  let feeLeft = platformFee;
+  for (const [i, b] of billSubtotals.entries()) {
+    const share = i === billSubtotals.length - 1 ? feeLeft : subtotal > 0 ? Math.floor((platformFee * b.paise) / subtotal) : 0;
+    feeLeft -= share;
+    // No separate stall GST or convenience fee: the bill total is the item subtotal (what the stall earns).
+    await exec(conn, 'UPDATE stall_orders SET subtotal = ?, tax = 0, platform_fee = ?, total = ? WHERE stall_order_id = ?', [
+      toRupees(b.paise),
+      toRupees(share),
+      toRupees(b.paise),
+      b.id,
+    ]);
+  }
   await exec(conn, 'UPDATE orders SET subtotal = ?, tax = 0, convenience_fee = 0, additional_fee = ?, total = ? WHERE order_id = ?', [
     toRupees(subtotal),
     toRupees(platformFee),
