@@ -63,7 +63,7 @@ differences are noted. Total first-time setup: about 1 hour, mostly downloads.
 ```
  Your phone (USB)                         Your PC
  ┌──────────────────┐   adb reverse    ┌─────────────────────────────┐   ┌──────────────────────┐
- │ Student app      │ ── localhost: ──▶│ Backend API  :4000          │──▶│ Docker: MySQL  :3306 │
+ │ Student app      │ ── localhost: ──▶│ Backend API  :4000          │──▶│ Docker: MySQL  :3307 │
  │ Vendor app       │    4000          │ (npm run dev in backend/)   │──▶│ Docker: Redis  :6379 │
  └──────────────────┘                  └─────────────────────────────┘   └──────────────────────┘
 ```
@@ -212,7 +212,7 @@ A debug APK still needs the backend running **and** `adb reverse` (or the Wi-Fi 
 | `INSTALL_FAILED_VERIFICATION_FAILURE` / install blocked | Watch the phone and tap **Install** on the prompt; Developer options → turn off "Verify apps over USB", turn on "Disable permission monitoring" (OPPO) / "Install via USB" (Xiaomi). |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | An older Brunchy app with another signature is installed (e.g. the React prototype, same app id). Uninstall it first. |
 | `docker compose up` fails / "cannot connect to the Docker daemon" | Start Docker Desktop and wait for "Engine running". |
-| Backend: `ECONNREFUSED 127.0.0.1:3306` or Redis errors | Docker containers are not running: `docker compose up -d`, then `docker ps`. |
+| Backend: `ECONNREFUSED 127.0.0.1:3307` or Redis errors | Docker containers are not running: `docker compose up -d`, then `docker ps`. |
 | Backend: `EADDRINUSE :4000` | Another backend is already running. Close the other terminal (or find it in Task Manager → node.exe). |
 | Backend exits with "Invalid backend settings" | `backend\.env` missing or a secret shorter than 16 characters. Repeat Step 3. |
 | App: "This canteen is not taking orders right now" | Outside canteen hours (IST). Set `IGNORE_CANTEEN_HOURS=true` in `backend\.env` and restart the backend. |

@@ -14,7 +14,9 @@ interface BillRow {
   bill_no: string | null;
   subtotal: number;
   tax: number;
+  platform_fee: number;
   total: number;
+  refunded_amount: number;
   status: string;
   pickup_code: string | null;
   code_attempts: number;
@@ -65,7 +67,12 @@ function serializeBill(b: BillRow, items: ItemRow[]) {
     studentFirstName: b.student_name.split(' ')[0],
     subtotal: b.subtotal,
     tax: b.tax,
+    /** Item total: what the stall earns. */
     total: b.total,
+    /** This bill's share of the order's platform fee. The student paid total + platformFee for this bill. */
+    platformFee: b.platform_fee,
+    /** Money refunded (or being refunded) for this bill. Includes the platform fee share only when the stall rejected it. */
+    refundedAmount: b.refunded_amount,
     items: items
       .filter((i) => i.stall_order_id === b.stall_order_id)
       .map((i) => ({
@@ -93,7 +100,9 @@ function serializeBill(b: BillRow, items: ItemRow[]) {
 export type BillView = ReturnType<typeof serializeBill> & { userId: string };
 
 const BILL_SELECT = `
-  SELECT so.*, s.stall_name, o.user_id, o.status AS order_status, u.name AS student_name
+  SELECT so.*, s.stall_name, o.user_id, o.status AS order_status, u.name AS student_name,
+         (SELECT COALESCE(SUM(r.amount), 0) FROM refunds r
+           WHERE r.stall_order_id = so.stall_order_id AND r.status NOT IN ('rejected', 'failed')) AS refunded_amount
     FROM stall_orders so
     JOIN stalls s ON s.stall_id = so.stall_id
     JOIN orders o ON o.order_id = so.order_id

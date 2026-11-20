@@ -107,6 +107,12 @@ class _BillCard extends StatelessWidget {
       badge = const SizedBox.shrink();
     }
 
+    // Refunds: the server's figure when it has one. The stall's fault (rejected / emergency) refunds the platform fee
+    // share too; a student cancellation refunds only the item total.
+    final stallFault = b.status == 'rejected';
+    final refundAmount = b.refundedAmount > 0 ? b.refundedAmount : (stallFault ? b.amountPaid : b.total);
+    final feeKept = isRefunded && b.platformFee > 0 && refundAmount < b.amountPaid;
+
     Widget codeBox;
     if (isRefunded || isExpired) {
       codeBox = Padding(
@@ -115,8 +121,9 @@ class _BillCard extends StatelessWidget {
           txt(isExpired ? 'Pickup window expired' : b.status == 'rejected' ? 'The stall could not take this order' : 'Order cancelled', 12, w: w7, color: C.purple800, align: TextAlign.center),
           const SizedBox(height: 4),
           txt(
-            (isExpired ? 'This bill can no longer be collected.' : '₹${fmtNum(b.total)} is being refunded to your original payment method.') +
-                (b.cancelReason != null && !isExpired ? ' Reason: ${b.cancelReason}.' : ''),
+            (isExpired ? 'This bill can no longer be collected.' : '₹${fmtNum(refundAmount)} is being refunded to your original payment method.') +
+                (b.cancelReason != null && !isExpired ? ' Reason: ${b.cancelReason}.' : '') +
+                (!isExpired && feeKept ? ' The ₹${fmtNum(b.platformFee)} platform fee is not refunded when you cancel.' : ''),
             11, color: C.slate500, align: TextAlign.center),
         ]),
       );
@@ -196,20 +203,41 @@ class _BillCard extends StatelessWidget {
                 txt('₹${fmtNum(it.price * it.quantity)}', 12, font: F.mono),
               ]),
             ),
+          if (b.platformFee > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(children: [
+                Expanded(child: txt('Platform fee', 12, color: C.slate500)),
+                txt('₹${fmtNum(b.platformFee)}', 12, font: F.mono, color: C.slate500),
+              ]),
+            ),
           Container(
             margin: const EdgeInsets.only(top: 8),
             padding: const EdgeInsets.only(top: 8),
             decoration: const BoxDecoration(border: Border(top: BorderSide(color: C.slate100))),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              txt(isRefunded ? 'Refunded' : 'Total Paid', 12, w: w7),
-              txt('₹${fmtNum(b.total)}', 12, w: w7, font: F.mono, color: C.brand),
+            child: Column(children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                txt('Total Paid', 12, w: w7),
+                txt('₹${fmtNum(b.amountPaid)}', 12, w: w7, font: F.mono, color: isRefunded ? C.slate500 : C.brand),
+              ]),
+              if (isRefunded) ...[
+                const SizedBox(height: 4),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  txt('Refunded', 12, w: w7, color: C.purple700),
+                  txt('₹${fmtNum(refundAmount)}', 12, w: w7, font: F.mono, color: C.purple700),
+                ]),
+              ],
             ]),
           ),
           // The stall accepts and hands over from the vendor app; the student can still cancel before cooking starts.
           if (b.status == 'waiting_for_acceptance' || b.status == 'accepted') ...[
             const SizedBox(height: 12),
             _action('Cancel & Refund (₹${fmtNum(b.total)})', C.rose50, C.rose700, C.rose200, null, () async {
-              if (!await showConfirm(context, 'Cancel this bill? The full amount is refunded to your payment method.')) return;
+              final message = b.platformFee > 0
+                  ? 'Cancel this bill? ₹${fmtNum(b.total)} is refunded to your payment method. '
+                      'The ₹${fmtNum(b.platformFee)} platform fee is not refunded when you cancel.'
+                  : 'Cancel this bill? The full amount is refunded to your payment method.';
+              if (!await showConfirm(context, message)) return;
               final error = await s.cancelStudentBill(b.stallOrderId);
               if (error != null && context.mounted) showAlert(context, error);
             }),

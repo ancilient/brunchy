@@ -13,7 +13,7 @@ const schema = z.object({
   LOG_LEVEL: z.string().default('info'),
 
   DB_HOST: z.string().default('127.0.0.1'),
-  DB_PORT: z.coerce.number().int().default(3306),
+  DB_PORT: z.coerce.number().int().default(3307), // docker-compose publishes MySQL on host port 3307
   DB_USER: z.string().default('brunchy'),
   DB_PASSWORD: z.string().default('brunchy'),
   DB_NAME: z.string().default('brunchy'),

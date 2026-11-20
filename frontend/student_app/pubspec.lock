@@ -89,6 +89,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.8"
+  eventify:
+    dependency: transitive
+    description:
+      name: eventify
+      sha256: b829429f08586cc2001c628e7499e3e3c2493a1d895fd73b00ecb23351aa5a66
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
   fake_async:
     dependency: transitive
     description:
@@ -304,14 +312,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
-  listen:
-    dependency: transitive
-    description:
-      name: listen
-      sha256: "47501a08016a43fcad79252439d723f50f14f88fa7bfd8a177e0a417e5c9e1f2"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.1"
   logging:
     dependency: transitive
     description:
@@ -472,6 +472,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.1"
+  razorpay_flutter:
+    dependency: "direct main"
+    description:
+      name: razorpay_flutter
+      sha256: f0ffd4e162f0c4c8d72e512deaece22d2179e653e470fd794865283c28ff9079
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.7"
   record_use:
     dependency: transitive
     description:
@@ -601,10 +609,10 @@ packages:
     dependency: transitive
     description:
       name: test_api
-      sha256: "0a10344e901e5b2e63819567951cb6a06673ed6b84f40462188ff5a0c41f371f"
+      sha256: "2a122cbe059f8b610d3a5415f42e255b6c17b1f21eee1d960f31080237fb4f11"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.14"
+    version: "0.7.12"
   typed_data:
     dependency: transitive
     description:
