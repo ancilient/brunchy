@@ -13,3 +13,8 @@ gradlew   text eol=lf
 *.pdf     binary
 *.jar     binary
 *.ttf     binary
+
+# Docker and Caddy files run on Linux: always LF line endings.
+Dockerfile text eol=lf
+Caddyfile text eol=lf
+*.yml text eol=lf

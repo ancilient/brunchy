@@ -1,0 +1,15 @@
+# The production image (backend/Dockerfile) is built from the repository root but only needs backend/ and database/.
+**/node_modules
+**/dist
+**/build
+**/.dart_tool
+.git
+.github
+frontend
+docs
+deploy
+**/.env
+**/.env.*
+!**/.env.example
+**/*.apk
+**/*.log
