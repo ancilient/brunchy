@@ -1,0 +1,84 @@
+# Production stack for the Brunchy backend on one VPS. See deploy/README.md.
+#   cd deploy && docker compose -f docker-compose.prod.yml up -d --build
+# Settings and secrets come from deploy/.env (copied from .env.example; never committed).
+# Only Caddy is reachable from the internet (ports 80/443). MySQL and Redis stay on the private Docker network.
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in deploy/.env}
+      MYSQL_DATABASE: brunchy
+      MYSQL_USER: brunchy
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in deploy/.env}
+    # All DATETIME values are stored in UTC.
+    command: ["--default-time-zone=+00:00", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: brunchy-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: brunchy
+      DB_NAME: brunchy
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+    logging: *logging
+
+volumes:
+  mysql-data:
+  redis-data:
+  caddy-data:
+  caddy-config:

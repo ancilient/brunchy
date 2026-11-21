@@ -1,0 +1,6 @@
+# Caddy gets and renews a free HTTPS certificate (Let's Encrypt) for API_DOMAIN automatically,
+# and passes requests (including Socket.IO WebSockets) to the API container.
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:4000
+}
