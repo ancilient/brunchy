@@ -12,8 +12,16 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get upgrade -y
 
-echo "==> Installing Docker, Compose, git, firewall, automatic security updates"
-apt-get install -y docker.io docker-compose-v2 git ufw unattended-upgrades
+echo "==> Installing git, firewall, automatic security updates"
+apt-get install -y git ufw unattended-upgrades
+# Many VPS images (e.g. Hostinger's) already ship Docker's own docker-ce + compose plugin. Ubuntu's docker.io
+# package conflicts with those, so install it only when Docker is missing.
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  echo "==> Docker and Compose already installed; keeping them"
+else
+  echo "==> Installing Docker and Compose (Ubuntu packages)"
+  apt-get install -y docker.io docker-compose-v2
+fi
 systemctl enable --now docker
 dpkg-reconfigure -f noninteractive unattended-upgrades
 

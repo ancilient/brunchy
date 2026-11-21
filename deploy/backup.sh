@@ -5,6 +5,7 @@
 #   gunzip -c /var/backups/brunchy/brunchy-YYYY-MM-DD_HHMM.sql.gz | \
 #     docker compose -f /opt/brunchy/deploy/docker-compose.prod.yml exec -T mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" brunchy'
 set -euo pipefail
+umask 077   # backups contain personal data: readable by root only
 
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKUP_DIR=/var/backups/brunchy
