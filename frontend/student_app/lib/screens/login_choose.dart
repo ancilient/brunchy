@@ -204,9 +204,10 @@ class ChooseCanteenScreen extends StatelessWidget {
               Row(children: [
                 pill(tag, bg: tagBg, fg: tagFg, spacing: 0.5),
                 const SizedBox(width: 8),
-                dot(C.emerald500),
+                // takingOrders from the server: switched on AND inside opening hours right now.
+                dot(c.status == 'open' ? C.emerald500 : C.slate400),
                 const SizedBox(width: 4),
-                txt('OPEN', 12, w: w6, color: C.emerald600),
+                txt(c.status == 'open' ? 'OPEN' : 'CLOSED', 12, w: w6, color: c.status == 'open' ? C.emerald600 : C.slate500),
               ]),
               const SizedBox(height: 4),
               txt(c.name, 18, w: w8, font: F.display),

@@ -139,9 +139,7 @@ class _StudentHomeState extends State<StudentHome> {
                             dot(C.hex(stall.accentColor), 10),
                             const SizedBox(width: 8),
                             Expanded(child: txt(stall.name, 14, w: w7, font: F.display)),
-                            dot(C.emerald500, 6),
-                            const SizedBox(width: 4),
-                            txt('OPEN', 11, w: w6, color: C.emerald600),
+                            ..._stallBadge(s.canteenById(s.selectedCanteenId)?.status == 'open', stall.status),
                           ]),
                         ),
                         const SizedBox(height: 12),
@@ -154,6 +152,16 @@ class _StudentHomeState extends State<StudentHome> {
         ),
       ),
     );
+  }
+
+  /// Stall header badge: CLOSED while the canteen is outside its hours, otherwise the stall's own state.
+  List<Widget> _stallBadge(bool canteenOpen, String stallStatus) {
+    final (label, dotColor, textColor) = !canteenOpen || stallStatus == 'closed'
+        ? ('CLOSED', C.slate400, C.slate500)
+        : stallStatus == 'paused'
+            ? ('PAUSED', C.amber500, C.amber700)
+            : ('OPEN', C.emerald500, C.emerald600);
+    return [dot(dotColor, 6), const SizedBox(width: 4), txt(label, 11, w: w6, color: textColor)];
   }
 
   /// 2-column grid with equal-height rows (grid-cols-2 gap-3.5)

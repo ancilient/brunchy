@@ -335,7 +335,7 @@ class CanteenPicker extends StatelessWidget {
                                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                     pill('CLOSED', bg: C.slate200, fg: C.slate500, size: 12, radius: 8, pad: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
                                     const SizedBox(height: 4),
-                                    txt('Opens at 6:00 PM', 11, color: C.slate500),
+                                    txt('Hours ${c.openingTime}–${c.closingTime}', 11, color: C.slate500),
                                   ])
                                 else
                                   pill('OPEN', bg: C.emerald100, fg: C.emerald700, size: 12, radius: 8, pad: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
