@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/errors/app_exception.dart';
+import '../../core/widgets/brand_logo.dart';
 import 'auth_cubit.dart';
 import 'auth_state.dart';
 
@@ -74,7 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: AppSpacing.lg),
-                Center(child: Image.asset('assets/images/logo_horizontal.png', height: 54)),
+                const Center(child: BrandLockup(height: 56)),
                 const SizedBox(height: AppSpacing.lg),
                 Text('Welcome!', style: Theme.of(context).textTheme.displayLarge),
                 const SizedBox(height: AppSpacing.xs),
