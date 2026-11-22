@@ -773,6 +773,9 @@ class _OrderCardState extends State<_OrderCard> {
         onPressed: () => context.read<OrdersCubit>().undoReady(order.id),
       ),
       duration: const Duration(seconds: 5),
+      // Since Flutter 3.38 a snackbar with an action stays until dismissed (persist defaults to true), which left
+      // "Marked ready! Undo" covering the Handover keypad. Close it when the undo window ends.
+      persist: false,
     ));
   }
 
