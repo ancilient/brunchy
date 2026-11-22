@@ -25,10 +25,20 @@ const schema = z.object({
   JWT_REFRESH_DAYS: z.coerce.number().int().positive().default(30),
 
   HOLD_MINUTES: z.coerce.number().positive().default(5),
-  /** Kept for schema/API compatibility; charged amount is always 0 (platform fee only). */
+  /** Old flat convenience fee (₹). No longer used: the convenience fee is CONVENIENCE_FEE_PERCENT of the items. */
   CONVENIENCE_FEE: z.coerce.number().min(0).default(0),
-  /** Platform fee = this % of item subtotal only (covers platform fee + GST; no separate stall GST). */
-  PLATFORM_FEE_PERCENT: z.coerce.number().min(0).default(2.36),
+  /** Payable = item total + platform fee + convenience fee, each this % of the item total (no separate stall GST). */
+  PLATFORM_FEE_PERCENT: z.coerce.number().min(0).default(3),
+  CONVENIENCE_FEE_PERCENT: z.coerce.number().min(0).default(3),
+  /** A student's first N paid orders have no platform or convenience fee. */
+  FREE_ORDERS_PER_STUDENT: z.coerce.number().int().min(0).default(2),
+
+  // Customer Care in the student app (served by GET /app-config, so they change without a new app). Empty = hidden.
+  SUPPORT_EMAIL: z.string().default(''),
+  SUPPORT_PHONE: z.string().default(''), // e.g. +919876543210
+  SUPPORT_WHATSAPP: z.string().default(''), // e.g. 919876543210 (country code, digits only)
+  /** GST number printed on bills. Empty = the bill shows a placeholder until it is registered. */
+  GSTIN: z.string().default(''),
 
   PAYMENT_GATEWAY: z.enum(['mock', 'razorpay']).default('mock'),
   MOCK_GATEWAY_SECRET: z.string().min(16).optional(),

@@ -183,7 +183,7 @@ class StallControlPanel extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.sm),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('#${order.counterCode} - ${order.studentFirstName}',
+                      Text('${order.billNumber} - ${order.studentFirstName}',
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                       Text(order.itemsSummary),
                       const SizedBox(height: AppSpacing.sm),

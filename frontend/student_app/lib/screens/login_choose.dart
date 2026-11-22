@@ -7,6 +7,7 @@ import '../api/api_client.dart';
 import '../api/google_auth.dart';
 import '../state/app_scope.dart';
 import '../state/models.dart';
+import '../state/terms.dart';
 import '../ui/icons.dart';
 import '../ui/theme.dart';
 
@@ -19,6 +20,8 @@ class LoginScreen extends StatefulWidget {
 
 class LoginScreenState extends State<LoginScreen> {
   bool _busy = false;
+  /// The student ticked "I agree to the Terms & Conditions". Sign-in stays disabled until then.
+  bool _agreed = false;
   bool _loadingOptions = true;
   String? _optionsError;
   ({bool google, String? googleClientId, bool devLogin})? _options;
@@ -75,6 +78,62 @@ class LoginScreenState extends State<LoginScreen> {
   /// Android back: nothing to go back to on this screen.
   bool handleBack() => false;
 
+  /// The Terms & Conditions as a checklist (lib/state/terms.dart). "I agree" ticks the box.
+  Future<void> _showTerms() async {
+    final agree = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: txt('Terms & Conditions', 18, w: w8, font: F.display),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            txt(termsIntro, 12, color: C.slate600),
+            const SizedBox(height: 10),
+            for (final point in termsPoints)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Padding(padding: EdgeInsets.only(top: 1), child: LIcon('CheckCircle2', size: 16, color: C.emerald600)),
+                  const SizedBox(width: 8),
+                  Expanded(child: txt(point, 12, color: C.slate800)),
+                ]),
+              ),
+            txt(termsOutro, 11, color: C.slate500),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: txt('Close', 13, w: w6, color: C.slate500)),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: txt('I agree', 13, w: w7, color: C.brand)),
+        ],
+      ),
+    );
+    if (agree == true && mounted) setState(() => _agreed = true);
+  }
+
+  Widget _termsCheckbox() => Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        SizedBox(
+          width: 28,
+          height: 28,
+          child: Checkbox(
+            value: _agreed,
+            activeColor: C.brand,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            onChanged: _busy ? null : (v) => setState(() => _agreed = v ?? false),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Tap(
+            onTap: _showTerms,
+            child: Text.rich(TextSpan(style: ts(12, color: C.slate600), children: [
+              const TextSpan(text: 'I agree to the '),
+              TextSpan(text: 'Terms & Conditions', style: ts(12, w: w7, color: C.brand).copyWith(decoration: TextDecoration.underline)),
+            ])),
+          ),
+        ),
+      ]);
+
   @override
   Widget build(BuildContext context) {
     final o = _options;
@@ -103,10 +162,15 @@ class LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 12),
                 GradientButton(onTap: _loadOptions, child: txt('Try again', 12, w: w7, color: Colors.white)),
               ] else ...[
-                // Sign in with Google (Google's button style: white, Google "G", dark text)
+                _termsCheckbox(),
+                const SizedBox(height: 14),
+                // Sign in with Google (Google's button style: white, Google "G", dark text). Needs the terms ticked.
                 Tap(
-                  onTap: _busy ? null : _google,
-                  child: Container(
+                  onTap: _busy || !_agreed ? null : _google,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 150),
+                    opacity: _agreed ? 1 : 0.45,
+                    child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.slate200)),
                     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -114,14 +178,17 @@ class LoginScreenState extends State<LoginScreen> {
                       const SizedBox(width: 12),
                       txt(_busy ? 'Signing in...' : 'Sign in with Google', 14, w: w7, color: C.slate800),
                     ]),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
-                txt('Use your college or personal Google account. Free, no SMS needed.', 11, color: C.slate500, align: TextAlign.center),
+                txt(
+                  _agreed ? 'Use your college or personal Google account. Free, no SMS needed.' : 'Tick the box above to accept the Terms & Conditions and continue.',
+                  11, color: C.slate500, align: TextAlign.center),
                 if (o?.devLogin == true) ...[
                   const SizedBox(height: 20),
                   Tap(
-                    onTap: _busy ? null : () => _run(() => AppScope.read(context).devLogin()),
+                    onTap: _busy || !_agreed ? null : () => _run(() => AppScope.read(context).devLogin()),
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(color: C.amber50, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.a(C.amber200, 0.8))),
@@ -138,7 +205,7 @@ class LoginScreenState extends State<LoginScreen> {
               Container(
                 padding: const EdgeInsets.only(top: 16),
                 decoration: const BoxDecoration(border: Border(top: BorderSide(color: C.slate100))),
-                child: txt('By signing in, you agree to Brunchy Canteen Terms & Privacy Notice', 10, color: C.slate400, align: TextAlign.center),
+                child: txt('Privacy Notice: we only use your name and email to run your orders.', 10, color: C.slate400, align: TextAlign.center),
               ),
             ]),
           ),

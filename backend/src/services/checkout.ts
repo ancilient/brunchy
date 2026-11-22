@@ -6,6 +6,7 @@ import { scheduleHoldExpiry } from '../jobs/holdExpiry.js';
 import { gateway } from '../payments/gateway.js';
 import { canteenTakesOrders, effectiveStallStatus, toPaise, toRupees } from '../util.js';
 import { audit } from './audit.js';
+import { feesFor, splitByWeight } from './fees.js';
 import { releaseHolds } from './holds.js';
 import { bustMenuCache } from './menu.js';
 import { loadOrder } from './orders.js';
@@ -65,27 +66,36 @@ export async function recalcTotals(conn: PoolConnection, orderId: number) {
     subtotal += billSubtotal;
     billSubtotals.push({ id: bill.stall_order_id, paise: billSubtotal });
   }
-  // Platform fee = % of item total (rate already covers platform fee + GST).
-  const platformFee = Math.round((subtotal * config.PLATFORM_FEE_PERCENT) / 100);
-  // Split it across the bills by item subtotal; the last bill takes the rounding so the shares add up exactly.
-  let feeLeft = platformFee;
+  // Payable = items + platform fee + convenience fee (each a % of the items), or items only for a student's first
+  // free orders. No separate stall GST.
+  const order = await one<{ user_id: number }>(conn, 'SELECT user_id FROM orders WHERE order_id = ?', [orderId]);
+  const fees = await feesFor(conn, order!.user_id, orderId, subtotal);
+  // Each bill keeps its share of both fees (split by item subtotal; the shares add up exactly).
+  const weights = billSubtotals.map((b) => b.paise);
+  const platformShares = splitByWeight(fees.platformPaise, weights);
+  const convenienceShares = splitByWeight(fees.conveniencePaise, weights);
   for (const [i, b] of billSubtotals.entries()) {
-    const share = i === billSubtotals.length - 1 ? feeLeft : subtotal > 0 ? Math.floor((platformFee * b.paise) / subtotal) : 0;
-    feeLeft -= share;
-    // No separate stall GST or convenience fee: the bill total is the item subtotal (what the stall earns).
-    await exec(conn, 'UPDATE stall_orders SET subtotal = ?, tax = 0, platform_fee = ?, total = ? WHERE stall_order_id = ?', [
+    // The bill total is the item subtotal: what the stall earns.
+    await exec(conn, 'UPDATE stall_orders SET subtotal = ?, tax = 0, platform_fee = ?, convenience_fee = ?, total = ? WHERE stall_order_id = ?', [
       toRupees(b.paise),
-      toRupees(share),
+      toRupees(platformShares[i]),
+      toRupees(convenienceShares[i]),
       toRupees(b.paise),
       b.id,
     ]);
   }
-  await exec(conn, 'UPDATE orders SET subtotal = ?, tax = 0, convenience_fee = 0, additional_fee = ?, total = ? WHERE order_id = ?', [
-    toRupees(subtotal),
-    toRupees(platformFee),
-    toRupees(subtotal + platformFee),
-    orderId,
-  ]);
+  await exec(
+    conn,
+    'UPDATE orders SET subtotal = ?, tax = 0, convenience_fee = ?, additional_fee = ?, fees_waived = ?, total = ? WHERE order_id = ?',
+    [
+      toRupees(subtotal),
+      toRupees(fees.conveniencePaise),
+      toRupees(fees.platformPaise),
+      fees.waived,
+      toRupees(subtotal + fees.platformPaise + fees.conveniencePaise),
+      orderId,
+    ],
+  );
 }
 
 /**

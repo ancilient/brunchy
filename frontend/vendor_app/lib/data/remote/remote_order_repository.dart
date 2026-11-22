@@ -40,6 +40,7 @@ class RemoteOrderRepository implements OrderRepository {
       id: b['id'] as String,
       billNumber: (b['billNo'] as String?) ?? '#${b['id']}',
       counterCode: RegExp(r'^[1-9]\d{2}$').hasMatch(code) ? code : '100',
+      orderCode: (b['orderCode'] as String?) ?? '',
       studentFirstName: (b['studentFirstName'] as String?) ?? 'Student',
       stallId: b['stallId'] as String,
       items: (b['items'] as List)

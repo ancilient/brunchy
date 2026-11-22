@@ -45,9 +45,20 @@ class AppState extends ChangeNotifier {
   String pickupSlot = 'now';
   int selectedCanteenId = 1;
   int demoClockMultiplier = 1; // kept for the header's demo control; timers now follow the server clock
-  double convenienceFee = 0; // unused in totals; kept for API compatibility
-  /// Platform fee % of item total only. Synced from server after checkout.
-  double platformFeePercent = 2.36;
+  double convenienceFee = 0; // the last checkout's convenience fee (₹)
+  /// Fee rates (% of the item total) from GET /app-config; the server computes the real amounts at checkout.
+  double platformFeePercent = 3;
+  double convenienceFeePercent = 3;
+  int freeOrdersPerStudent = 2;
+  /// Free orders (no platform or convenience fee) this student still has, from GET /me.
+  int freeOrdersLeft = 0;
+  bool get nextOrderFree => freeOrdersLeft > 0;
+
+  /// Customer Care contacts and the GST number on bills (GET /app-config). Null = not set on the server.
+  String? supportEmail;
+  String? supportPhone;
+  String? supportWhatsapp;
+  String? gstin;
 
   /// True when the last menu refresh failed and the menu shown may be out of date.
   bool menuOffline = false;
@@ -117,16 +128,36 @@ class AppState extends ChangeNotifier {
 
   /// Menu, profile and orders. Called at start, after login, and after payment.
   Future<void> refresh() async {
+    await loadAppConfig();
     await refreshMenu();
     if (!currentUser.isLoggedIn) return;
     try {
       final me = await api.get('/me');
       currentUser = userFromApi(me['user'] as Map<String, dynamic>);
+      freeOrdersLeft = (me['freeOrdersLeft'] as num?)?.toInt() ?? 0;
       _prefs.setString(_userKey, jsonEncode(currentUser.toJson()));
     } on ApiException catch (_) {
       // offline: keep the saved profile
     }
     await refreshOrders();
+  }
+
+  /// Customer Care contacts, GST number and fee rates. Public (no login needed); keeps the defaults when offline.
+  Future<void> loadAppConfig() async {
+    try {
+      final r = await api.get('/app-config');
+      final support = (r['support'] as Map?)?.cast<String, dynamic>() ?? const {};
+      supportEmail = support['email'] as String?;
+      supportPhone = support['phone'] as String?;
+      supportWhatsapp = support['whatsapp'] as String?;
+      gstin = r['gstin'] as String?;
+      final fees = (r['fees'] as Map?)?.cast<String, dynamic>() ?? const {};
+      platformFeePercent = (fees['platformPercent'] as num?)?.toDouble() ?? platformFeePercent;
+      convenienceFeePercent = (fees['conveniencePercent'] as num?)?.toDouble() ?? convenienceFeePercent;
+      freeOrdersPerStudent = (fees['freeOrdersPerStudent'] as num?)?.toInt() ?? freeOrdersPerStudent;
+    } on ApiException catch (_) {
+      // offline or an older server: keep what we have
+    }
   }
 
   Future<void> refreshMenu() async {
@@ -429,6 +460,7 @@ class AppState extends ChangeNotifier {
       final order = orderFromApi(r['order'] as Map<String, dynamic>, pickupSlot: pickupSlot);
       convenienceFee = order.convenienceFee;
       if (order.platformFeePercent > 0) platformFeePercent = order.platformFeePercent;
+      if (order.convenienceFeePercent > 0) convenienceFeePercent = order.convenienceFeePercent;
       if (order.status == 'cancelled') {
         cart = [];
         _changed();

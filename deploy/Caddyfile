@@ -1,6 +1,16 @@
 # Caddy gets and renews a free HTTPS certificate (Let's Encrypt) for API_DOMAIN automatically,
-# and passes requests (including Socket.IO WebSockets) to the API container.
+# serves food photos from deploy/uploads at /uploads/, and passes everything else (including Socket.IO
+# WebSockets) to the API container.
 {$API_DOMAIN} {
 	encode zstd gzip
-	reverse_proxy api:4000
+
+	handle_path /uploads/* {
+		root * /srv/uploads
+		header Cache-Control "public, max-age=86400"
+		file_server
+	}
+
+	handle {
+		reverse_proxy api:4000
+	}
 }

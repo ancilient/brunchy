@@ -5,7 +5,9 @@ import 'order_status.dart';
 class Order {
   final String id;
   final String billNumber;
-  final String counterCode; // 3-digit counter code (100–999)
+  final String counterCode; // 3-digit pickup code (100–999): the student says it at the counter; not shown on order cards
+  /// The Order ID (ORD-00014) shown on cards and quoted to Customer Care. Empty in the offline demo.
+  final String orderCode;
   final String studentFirstName;
   final String stallId;
   final List<OrderItem> items;
@@ -24,6 +26,7 @@ class Order {
     required this.id,
     required this.billNumber,
     this.counterCode = '100',
+    this.orderCode = '',
     this.studentFirstName = 'Student',
     required this.stallId,
     required this.items,
@@ -48,6 +51,7 @@ class Order {
         id: json['id'] as String,
         billNumber: json['billNumber'] as String,
         counterCode: (json['counterCode'] as String?) ?? '100',
+        orderCode: (json['orderCode'] as String?) ?? '',
         studentFirstName: (json['studentFirstName'] as String?) ?? 'Student',
         stallId: json['stallId'] as String,
         items: (json['items'] as List).map((e) => OrderItem.fromJson(e)).toList(),
@@ -67,6 +71,7 @@ class Order {
         'id': id,
         'billNumber': billNumber,
         'counterCode': counterCode,
+        'orderCode': orderCode,
         'studentFirstName': studentFirstName,
         'stallId': stallId,
         'items': items.map((e) => e.toJson()).toList(),
@@ -86,6 +91,7 @@ class Order {
     String? id,
     String? billNumber,
     String? counterCode,
+    String? orderCode,
     String? studentFirstName,
     String? stallId,
     List<OrderItem>? items,
@@ -104,6 +110,7 @@ class Order {
         id: id ?? this.id,
         billNumber: billNumber ?? this.billNumber,
         counterCode: counterCode ?? this.counterCode,
+        orderCode: orderCode ?? this.orderCode,
         studentFirstName: studentFirstName ?? this.studentFirstName,
         stallId: stallId ?? this.stallId,
         items: items ?? this.items,

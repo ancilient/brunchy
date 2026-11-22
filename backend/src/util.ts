@@ -52,6 +52,9 @@ export function effectiveStallStatus(s: StallState, now = new Date()): 'open' | 
 export const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 export const idStr = (n: number | null | undefined) => (n === null || n === undefined ? null : String(n));
 
+/** The Order ID shown to students and vendors (and quoted to Customer Care): ORD-00014 for order 14. */
+export const orderCode = (orderId: number) => `ORD-${String(orderId).padStart(5, '0')}`;
+
 /** Converts a path/body id ("42") to a positive integer, or null. */
 export function parseId(value: unknown): number | null {
   const n = Number(value);

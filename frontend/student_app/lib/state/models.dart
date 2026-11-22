@@ -43,7 +43,7 @@ class Stall {
 }
 
 class Product {
-  Product({required this.id, required this.stallId, required this.canteenId, required this.name, required this.category, required this.price, required this.stock, required this.approvalStatus, required this.isActive});
+  Product({required this.id, required this.stallId, required this.canteenId, required this.name, required this.category, required this.price, required this.stock, required this.approvalStatus, required this.isActive, this.imageUrl});
   final int id;
   final int stallId;
   final int canteenId;
@@ -53,6 +53,8 @@ class Product {
   int stock;
   final String approvalStatus;
   final bool isActive;
+  /// Food photo (https URL) when one is set on the server; otherwise the app shows an emoji.
+  final String? imageUrl;
 
   factory Product.fromJson(Map<String, dynamic> j) => Product(
         id: j['product_id'] as int,
@@ -107,7 +109,7 @@ class StallBill {
     required this.subtotal, required this.tax, required this.total, required this.status,
     required this.estimatedTimeMins, this.estimatedReadyTime, required this.createdAt,
     this.cancelReason, this.isBlurredSealed = false, required this.items,
-    this.platformFee = 0, this.refundedAmount = 0,
+    this.platformFee = 0, this.convenienceFee = 0, this.refundedAmount = 0, this.orderCode = '',
   });
   final int stallOrderId;
   final int orderId;
@@ -123,10 +125,15 @@ class StallBill {
   final double total;
   /// This bill's share of the order's platform fee.
   final double platformFee;
+  /// This bill's share of the order's convenience fee.
+  final double convenienceFee;
+  /// The Order ID (ORD-00014): what students quote to Customer Care. Not the pickup code.
+  final String orderCode;
   /// What has been refunded for this bill (from the server; includes the fee share only if the stall rejected it).
   final double refundedAmount;
   /// What the student actually paid for this bill.
-  double get amountPaid => ((total + platformFee) * 100).round() / 100;
+  double get amountPaid => ((total + platformFee + convenienceFee) * 100).round() / 100;
+  double get feesPaid => ((platformFee + convenienceFee) * 100).round() / 100;
   /// 'awaiting_payment' | 'waiting_for_acceptance' | 'accepted' | 'preparing' | 'ready' | 'completed' | 'collected' | 'refunded' | 'rejected' | 'expired'
   String status;
   int estimatedTimeMins;
@@ -139,7 +146,7 @@ class StallBill {
   Map<String, dynamic> toJson() => {
         'stall_order_id': stallOrderId, 'order_id': orderId, 'stall_id': stallId, 'canteen_id': canteenId,
         'stall_name': stallName, 'bill_prefix': billPrefix, 'bill_no': billNo, 'pickup_code': pickupCode,
-        'subtotal': subtotal, 'tax': tax, 'total': total, 'platform_fee': platformFee, 'refunded_amount': refundedAmount, 'status': status,
+        'subtotal': subtotal, 'tax': tax, 'total': total, 'platform_fee': platformFee, 'convenience_fee': convenienceFee, 'refunded_amount': refundedAmount, 'order_code': orderCode, 'status': status,
         'estimated_time_mins': estimatedTimeMins, 'estimated_ready_time': estimatedReadyTime,
         'created_at': createdAt.toIso8601String(), 'cancel_reason': cancelReason,
         'is_blurred_sealed': isBlurredSealed, 'items': items.map((i) => i.toJson()).toList(),
@@ -157,6 +164,8 @@ class StallBill {
         tax: (j['tax'] as num).toDouble(),
         total: (j['total'] as num).toDouble(),
         platformFee: (j['platform_fee'] as num?)?.toDouble() ?? 0,
+        convenienceFee: (j['convenience_fee'] as num?)?.toDouble() ?? 0,
+        orderCode: (j['order_code'] as String?) ?? '',
         refundedAmount: (j['refunded_amount'] as num?)?.toDouble() ?? 0,
         status: j['status'] as String,
         estimatedTimeMins: (j['estimated_time_mins'] as num?)?.toInt() ?? 5,
@@ -172,7 +181,7 @@ class Order {
   Order({
     required this.orderId, required this.userId, required this.canteenId, required this.canteenName,
     required this.subtotal, required this.tax, required this.convenienceFee, required this.additionalFee,
-    this.platformFeePercent = 2.36,
+    this.platformFeePercent = 3, this.convenienceFeePercent = 3, this.feesWaived = false, this.orderCode = '',
     required this.total, required this.pickupSlot, required this.status, required this.createdAt, required this.bills,
   });
   final int orderId;
@@ -185,6 +194,11 @@ class Order {
   /// Platform fee in ₹ for this order (percent of items+GST, GST-inclusive).
   final double additionalFee;
   final double platformFeePercent;
+  final double convenienceFeePercent;
+  /// One of the student's free first orders: no platform or convenience fee.
+  final bool feesWaived;
+  /// The Order ID shown on bills and quoted to Customer Care (ORD-00014).
+  final String orderCode;
   final double total;
   final String pickupSlot;
   String status; // 'pending' | 'paid' | 'expired' | 'cancelled'

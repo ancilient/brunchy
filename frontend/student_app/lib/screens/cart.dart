@@ -26,9 +26,13 @@ class CartScreen extends StatelessWidget {
       final sub = lines.fold<double>(0, (a, l) => a + s.productById(l.productId)!.price * l.quantity);
       subtotal += sub;
     });
-    // Same as backend: only item total + platform fee % (no stall GST / convenience fee).
-    final platformFee = subtotal * s.platformFeePercent / 100;
-    final grandTotal = subtotal + platformFee;
+    // Same rule as the server (which decides the real amounts): items + platform fee % + convenience fee %,
+    // or items only while the student still has free first orders.
+    final free = s.nextOrderFree;
+    double fee(double pct) => free ? 0 : (subtotal * pct).round() / 100;
+    final platformFee = fee(s.platformFeePercent);
+    final convenienceFee = fee(s.convenienceFeePercent);
+    final grandTotal = subtotal + platformFee + convenienceFee;
 
     Future<void> checkout() async {
       final res = await s.startCheckout();
@@ -129,11 +133,27 @@ class CartScreen extends StatelessWidget {
                 decoration: card(),
                 child: Column(children: [
                   _row(txt('Item Total', 12, color: C.slate600), txt('₹${fmtNum(subtotal)}', 12, w: w5, font: F.mono)),
-                  if (platformFee > 0) ...[
+                  const SizedBox(height: 8),
+                  _row(
+                    txt('Platform fee (${fmtPct(s.platformFeePercent)}%)', 12, color: C.slate600),
+                    txt(free ? 'FREE' : '₹${platformFee.toStringAsFixed(2)}', 12, w: w5, font: F.mono, color: free ? C.emerald600 : C.slate800),
+                  ),
+                  const SizedBox(height: 8),
+                  _row(
+                    txt('Convenience fee (${fmtPct(s.convenienceFeePercent)}%)', 12, color: C.slate600),
+                    txt(free ? 'FREE' : '₹${convenienceFee.toStringAsFixed(2)}', 12, w: w5, font: F.mono, color: free ? C.emerald600 : C.slate800),
+                  ),
+                  if (free) ...[
                     const SizedBox(height: 8),
-                    _row(
-                      txt('Platform fee (${s.platformFeePercent}%)', 12, color: C.slate600),
-                      txt('₹${platformFee.toStringAsFixed(2)}', 12, w: w5, font: F.mono),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: C.emerald50, borderRadius: BorderRadius.circular(8)),
+                      child: txt(
+                        s.freeOrdersLeft == 1
+                            ? 'Welcome offer: no fees on this order (your last free order).'
+                            : 'Welcome offer: no fees on your first ${s.freeOrdersPerStudent} orders (${s.freeOrdersLeft} left).',
+                        11, w: w6, color: C.emerald700),
                     ),
                   ],
                   Container(
@@ -231,3 +251,6 @@ class CartScreen extends StatelessWidget {
         child: Container(width: 20, height: 20, decoration: BoxDecoration(color: bg, shape: BoxShape.circle), child: Center(child: icon)),
       );
 }
+
+/// 3.0 -> "3", 2.5 -> "2.5" for the fee labels.
+String fmtPct(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();

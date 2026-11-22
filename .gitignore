@@ -29,3 +29,7 @@ Thumbs.db
 # delete these two lines to commit them.
 docs/client-reference/*
 !docs/client-reference/README.md
+
+# ---- Food photos uploaded on the server (deploy/uploads) ----
+deploy/uploads/*
+!deploy/uploads/.gitkeep
