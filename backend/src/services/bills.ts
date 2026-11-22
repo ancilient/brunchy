@@ -3,7 +3,7 @@ import { IST_TODAY, exec, one, pool, rows, withTx } from '../db/pool.js';
 import { AppError, badRequest, conflict, forbidden, notFound } from '../errors.js';
 import type { AuthUser } from '../middleware/auth.js';
 import { publishBills } from '../realtime.js';
-import { effectiveStallStatus, iso, toPaise, toRupees } from '../util.js';
+import { canteenTakesOrders, effectiveStallStatus, iso, toPaise, toRupees } from '../util.js';
 import { audit } from './audit.js';
 import { bustMenuCache } from './menu.js';
 import { OPEN_BILL_STATUSES, loadBills } from './orders.js';
@@ -77,8 +77,19 @@ export async function listVendorBills(user: AuthUser, filter = 'active', date?: 
 /** The vendor's stall and its current state (open / paused until / closed). */
 export async function getVendorStall(user: AuthUser) {
   const stallId = vendorStall(user);
-  const s = await one(pool, 'SELECT s.*, c.canteen_name FROM stalls s JOIN canteens c ON c.canteen_id = s.canteen_id WHERE s.stall_id = ?', [stallId]);
+  const s = await one(
+    pool,
+    `SELECT s.*, c.canteen_name, c.status AS canteen_status, c.opening_time, c.closing_time, c.last_order_minutes
+       FROM stalls s JOIN canteens c ON c.canteen_id = s.canteen_id WHERE s.stall_id = ?`,
+    [stallId],
+  );
   if (!s) throw notFound('STALL_NOT_FOUND', 'Stall not found');
+  const hours = {
+    status: s.canteen_status as 'open' | 'closed',
+    opening_time: s.opening_time as string,
+    closing_time: s.closing_time as string,
+    last_order_minutes: s.last_order_minutes as number,
+  };
   return {
     stall: {
       id: String(s.stall_id),
@@ -90,6 +101,14 @@ export async function getVendorStall(user: AuthUser) {
       pausedUntil: iso(s.paused_until),
       avgPrepMinutes: s.avg_prep_minutes,
       updatedAt: iso(s.updated_at),
+      // Students can only order while the canteen is switched on AND inside its hours (minus the last-order
+      // margin), whatever the stall's own status is. The vendor app shows this next to "Accepting orders".
+      canteen: {
+        takingOrders: canteenTakesOrders(hours),
+        openingTime: hours.opening_time.slice(0, 5),
+        closingTime: hours.closing_time.slice(0, 5),
+        lastOrderMinutes: hours.last_order_minutes,
+      },
     },
   };
 }

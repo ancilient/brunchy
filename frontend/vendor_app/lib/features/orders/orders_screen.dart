@@ -88,13 +88,35 @@ class _AcceptingOrdersToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final cubit = context.read<OrdersCubit>();
     final accepting = loaded.acceptingOrders;
+    final canteenOpen = loaded.canteenOpen;
+    final hours = loaded.canteenOpeningTime != null && loaded.canteenClosingTime != null
+        ? ' (hours ${loaded.canteenOpeningTime}–${loaded.canteenClosingTime})'
+        : '';
+    // Students can order only when this stall accepts orders AND the canteen is inside its hours.
+    final String subtitle;
+    final Color tone;
+    final IconData icon;
+    if (!canteenOpen) {
+      subtitle = accepting
+          ? 'ON - canteen closed now$hours. Students can order once it opens.'
+          : 'OFF - canteen closed now$hours';
+      tone = AppColors.warningAmber;
+      icon = Icons.schedule;
+    } else if (accepting) {
+      subtitle = 'ON - students can order';
+      tone = AppColors.successGreen;
+      icon = Icons.check_circle;
+    } else {
+      subtitle = 'OFF - students see Not taking orders';
+      tone = AppColors.errorRed;
+      icon = Icons.pause_circle;
+    }
     return Container(
         color: AppColors.cardWhite,
         padding:
             const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
         child: Row(children: [
-          Icon(accepting ? Icons.check_circle : Icons.pause_circle,
-              color: accepting ? AppColors.successGreen : AppColors.errorRed),
+          Icon(icon, color: tone),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
               child: Column(
@@ -102,15 +124,7 @@ class _AcceptingOrdersToggle extends StatelessWidget {
                   children: [
                 const Text('Accepting orders',
                     style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(
-                    accepting
-                        ? 'ON - students can order'
-                        : 'OFF - students see Not taking orders',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: accepting
-                            ? AppColors.successGreen
-                            : AppColors.errorRed))
+                Text(subtitle, style: TextStyle(fontSize: 12, color: tone))
               ])),
           Switch(
               value: accepting,

@@ -5,6 +5,7 @@ import '../../data/models/order_filter.dart';
 import '../../data/models/order_status.dart';
 import '../../data/models/cancel_reason.dart';
 import '../../data/repositories/order_repository.dart';
+import '../../data/repositories/stall_control_repository.dart';
 import '../../services/realtime_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/tts_service.dart';
@@ -21,6 +22,8 @@ class OrdersCubit extends Cubit<OrdersState> {
   final AudioService _audioService;
   final TtsService _ttsService;
   final LocalStorageService _localStorageService;
+  /// Server-side stall state (production). Null in the offline demo, where the switch stays on the phone.
+  final StallControlRepository? _stallControl;
 
   StreamSubscription? _orderSub;
   StreamSubscription? _connectionSub;
@@ -30,10 +33,15 @@ class OrdersCubit extends Cubit<OrdersState> {
   int _maxCapacity = 15;
   bool _isOverrideActive = false;
   bool _isFiringBatch = false;
+  Timer? _stallStateTimer;
+  bool? _serverAccepting;
+  bool _canteenOpen = true;
+  String? _canteenOpeningTime;
+  String? _canteenClosingTime;
 
-  bool get acceptingOrders =>
-      _currentStallId == null ||
-      _localStorageService.isAcceptingOrders(_currentStallId!);
+  bool get acceptingOrders => _stallControl != null
+      ? (_serverAccepting ?? true)
+      : (_currentStallId == null || _localStorageService.isAcceptingOrders(_currentStallId!));
 
   String? get currentStallId => _currentStallId;
   int get maxCapacity => _maxCapacity;
@@ -45,7 +53,9 @@ class OrdersCubit extends Cubit<OrdersState> {
     this._audioService,
     this._ttsService, [
     LocalStorageService? localStorageService,
+    StallControlRepository? stallControl,
   ])  : _localStorageService = localStorageService ?? sl<LocalStorageService>(),
+        _stallControl = stallControl,
         super(const OrdersInitial()) {
     _maxCapacity = _localStorageService.getMaxCapacity();
   }
@@ -66,6 +76,22 @@ class OrdersCubit extends Cubit<OrdersState> {
         _localStorageService.getStallId(DateFormatter.todayKey()) ??
         'stall_001';
     _currentStallId = stallId;
+    final control = _stallControl;
+    if (control != null) {
+      // The server decides who can order: OFF closes the stall to new orders (orders already placed continue),
+      // ON reopens it. Students can still only order while the canteen is inside its hours.
+      try {
+        if (value) {
+          await control.reopen(stallId: stallId, staffId: 'orders-toggle');
+        } else {
+          await control.closeForDay(stallId: stallId, staffId: 'orders-toggle');
+        }
+      } catch (_) {
+        // Keep showing what the server says; refreshStallState below re-reads it.
+      }
+      await refreshStallState();
+      return;
+    }
     await _localStorageService.setAcceptingOrders(stallId, value);
     if (!value) {
       await _localStorageService.queueOfflineAction(
@@ -73,6 +99,31 @@ class OrdersCubit extends Cubit<OrdersState> {
     }
     final base = _currentLoaded;
     if (base != null) emit(base.copyWith(acceptingOrders: value));
+  }
+
+  /// Reads the stall's real state and the canteen hours from the server and updates the screen.
+  Future<void> refreshStallState() async {
+    final control = _stallControl;
+    final stallId = _currentStallId;
+    if (control == null || stallId == null) return;
+    try {
+      final st = await control.getControl(stallId);
+      _serverAccepting = st.acceptsNewOrders;
+      _canteenOpen = st.canteenTakingOrders;
+      _canteenOpeningTime = st.canteenOpeningTime;
+      _canteenClosingTime = st.canteenClosingTime;
+    } catch (_) {
+      return; // offline: keep the last known state
+    }
+    final base = _currentLoaded;
+    if (base != null) {
+      emit(base.copyWith(
+        acceptingOrders: acceptingOrders,
+        canteenOpen: _canteenOpen,
+        canteenOpeningTime: _canteenOpeningTime,
+        canteenClosingTime: _canteenClosingTime,
+      ));
+    }
   }
 
   void toggleOverloadOverride() {
@@ -94,6 +145,11 @@ class OrdersCubit extends Cubit<OrdersState> {
       );
       _emitLoaded(orders, OrderFilter.newOrders);
       _subscribeRealtime(stallId);
+      unawaited(refreshStallState());
+      _stallStateTimer?.cancel();
+      if (_stallControl != null) {
+        _stallStateTimer = Timer.periodic(const Duration(minutes: 1), (_) => refreshStallState());
+      }
     } on AppException catch (e) {
       emit(OrdersError(e.message));
     } catch (_) {
@@ -388,12 +444,16 @@ class OrdersCubit extends Cubit<OrdersState> {
       maxCapacity: _maxCapacity,
       isOverrideActive: _isOverrideActive,
       acceptingOrders: acceptingOrders,
+      canteenOpen: _canteenOpen,
+      canteenOpeningTime: _canteenOpeningTime,
+      canteenClosingTime: _canteenClosingTime,
     ));
   }
 
   @override
   Future<void> close() {
     _burstDebounceTimer?.cancel();
+    _stallStateTimer?.cancel();
     _orderSub?.cancel();
     _connectionSub?.cancel();
     _realtimeService.disconnect();

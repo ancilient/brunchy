@@ -163,6 +163,20 @@ describe('vendor board and handover', () => {
     expect(late.body.error.code).toBe('CANNOT_CANCEL');
   });
 
+  it("the vendor's stall shows whether the canteen is taking orders right now", async () => {
+    const open = await client.get('/vendor/stall', burger());
+    expect(open.body.stall.canteen).toMatchObject({ takingOrders: true, openingTime: expect.stringMatching(/^\d\d:\d\d$/) });
+    // Canteen switched off: the stall itself is still open, but students cannot order.
+    await pool.query("UPDATE canteens SET status = 'closed' WHERE canteen_id = 1");
+    try {
+      const closed = await client.get('/vendor/stall', burger());
+      expect(closed.body.stall.status).toBe('open');
+      expect(closed.body.stall.canteen.takingOrders).toBe(false);
+    } finally {
+      await pool.query("UPDATE canteens SET status = 'open' WHERE canteen_id = 1");
+    }
+  });
+
   it('pausing the stall blocks new checkouts until resumed', async () => {
     const paused = await client.post('/vendor/stall/status', { action: 'pause', minutes: 10 }, burger());
     expect(paused.body.stall.status).toBe('paused');
