@@ -52,10 +52,20 @@ export const studentToken = (id = STUDENT_ID) => tokenFor({ id, role: 'student',
 export async function createStudents(n: number) {
   const ids: number[] = [];
   for (let i = 0; i < n; i++) {
-    const r = await exec(pool, "INSERT INTO users (name, phone, role) VALUES (?, ?, 'student')", [`Student ${i}`, `7${String(100000000 + i).slice(-9)}`]);
+    const phone = `9${randomBytes(5).toString('hex').slice(0, 9)}`;
+    const r = await exec(pool, "INSERT INTO users (name, phone, role) VALUES (?, ?, 'student')", [`Student ${ids.length + i}`, phone]);
     ids.push(r.insertId);
   }
   return ids;
+}
+
+export async function createStudent() {
+  const [id] = await createStudents(1);
+  return id;
+}
+
+export async function payMock(client: ReturnType<typeof api>, orderId: string, token: string) {
+  return client.post(`/payments/mock/${orderId}/pay`, {}, token);
 }
 
 export const setStock = (productId: number, qty: number) => exec(pool, 'UPDATE products SET stock_quantity = ? WHERE product_id = ?', [qty, productId]);

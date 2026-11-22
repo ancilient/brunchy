@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+backend/env.text
+env.text
 
 # ---- Build outputs and installers ----
 build/

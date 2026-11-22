@@ -17,9 +17,16 @@ import 'ui/icons.dart';
 import 'ui/responsive_frame.dart';
 import 'ui/theme.dart';
 
+const _autoDevLogin = bool.fromEnvironment('AUTO_DEV_LOGIN');
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final state = await AppState.load();
+  if (_autoDevLogin && !state.currentUser.isLoggedIn) {
+    try {
+      await state.devLogin();
+    } catch (_) {}
+  }
   runApp(AppScope(state: state, child: const BrunchyApp()));
 }
 
