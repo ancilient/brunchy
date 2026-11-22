@@ -94,7 +94,7 @@ class InventoryItemRow extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          'Opening: ${item.openingStock}',
+                          item.serverSoldToday != null ? 'Daily qty: ${item.openingStock}' : 'Opening: ${item.openingStock}',
                           style: theme.textTheme.bodySmall?.copyWith(color: AppColors.grey600),
                         ),
                         const SizedBox(width: AppSpacing.sm),
