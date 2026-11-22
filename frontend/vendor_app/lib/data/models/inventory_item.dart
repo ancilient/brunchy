@@ -9,6 +9,8 @@ class InventoryItem {
   final int openingStock; // readonly — from yesterday's closing
   int currentStock; // editable; floor=0, ceiling=openingStock
   AdjustmentReason reason;
+  /// Units sold today according to the server (live). Null in the offline demo, where it is opening - current.
+  final int? serverSoldToday;
 
   InventoryItem({
     required this.id,
@@ -19,12 +21,12 @@ class InventoryItem {
     required this.openingStock,
     required this.currentStock,
     this.reason = AdjustmentReason.sale,
+    this.serverSoldToday,
   });
 
-  /// soldToday = openingStock - currentStock (computed)
-  /// With the live server, openingStock = current stock + units sold today (server), so this equals real sales
-  /// today. Offline demo: total stock reduction. May differ from the dashboard order count (R-18 in DESIGN.md).
-  int get soldToday => openingStock - currentStock;
+  /// Live: real units sold today from the server. Offline demo: openingStock - currentStock (total stock
+  /// reduction). May differ from the dashboard order count (R-18 in DESIGN.md).
+  int get soldToday => serverSoldToday ?? openingStock - currentStock;
 
   factory InventoryItem.fromJson(Map<String, dynamic> json) => InventoryItem(
         id: json['id'] as String,
@@ -57,6 +59,7 @@ class InventoryItem {
         openingStock: openingStock,
         currentStock: currentStock ?? this.currentStock,
         reason: reason ?? this.reason,
+        serverSoldToday: serverSoldToday,
       );
 }
 

@@ -163,7 +163,7 @@ class InventoryScreen extends StatelessWidget {
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(
                               child: Text(
-                                'Opening = stock now + units sold today. Tap + / − to set the real count on your counter.',
+                                'Daily qty is what Reset Daily Stock restores. Tap + / − to set the real count on your counter.',
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: AppColors.ink,
                                       fontWeight: FontWeight.w500,
