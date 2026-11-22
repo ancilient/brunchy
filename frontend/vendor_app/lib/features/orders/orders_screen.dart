@@ -169,38 +169,10 @@ class _CapacityGateBar extends StatelessWidget {
   final OrdersLoaded loaded;
   const _CapacityGateBar({required this.loaded});
 
-  void _onSliderChanged(BuildContext context, double value) {
-    final intValue = value.round();
-    if (intValue == 0) {
-      // Show confirmation dialog before stopping new orders
-      showDialog(
-        context: context,
-        builder: (ctx) => AppDialog(
-          title: const Text('Stop New Orders?'),
-          content: const Text(
-            'Setting max concurrent orders to 0 will stop new incoming orders for your stall. Existing orders can still be prepared.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style:
-                  ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                context.read<OrdersCubit>().setMaxCapacity(0);
-              },
-              child: const Text('Confirm Stop'),
-            ),
-          ],
-        ),
-      );
-    } else {
-      context.read<OrdersCubit>().setMaxCapacity(intValue);
-    }
-  }
+  /// The limit only controls auto-start on this phone: queued orders start by themselves while fewer than this many
+  /// are cooking. It does not stop students ordering (use the Accepting orders switch for that). 0 = start by FIRE only.
+  void _onSliderChanged(BuildContext context, double value) =>
+      context.read<OrdersCubit>().setMaxCapacity(value.round());
 
   @override
   Widget build(BuildContext context) {
@@ -215,7 +187,9 @@ class _CapacityGateBar extends StatelessWidget {
               const Icon(Icons.speed, size: 20, color: AppColors.primary),
               const SizedBox(width: 6),
               Text(
-                'Max Concurrent Orders: ${loaded.maxCapacity}',
+                loaded.maxCapacity == 0
+                    ? 'Auto-start: off (tap FIRE to start orders)'
+                    : 'Auto-start up to ${loaded.maxCapacity} orders at once',
                 style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
@@ -229,10 +203,10 @@ class _CapacityGateBar extends StatelessWidget {
               trackHeight: 6,
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
               activeTrackColor: loaded.maxCapacity == 0
-                  ? AppColors.errorRed
+                  ? AppColors.grey500
                   : AppColors.primary,
               thumbColor: loaded.maxCapacity == 0
-                  ? AppColors.errorRed
+                  ? AppColors.grey500
                   : AppColors.primary,
             ),
             child: Slider(
@@ -545,20 +519,22 @@ class _OrderCard extends StatefulWidget {
 }
 
 class _OrderCardState extends State<_OrderCard> {
-  late int _secondsLeft;
+  late int _waitedSeconds;
+
+  int get _waitedNow => DateTime.now().difference(widget.order.placedAt).inSeconds.clamp(0, 1 << 30);
 
   @override
   void initState() {
     super.initState();
-    _secondsLeft = widget.order.secondsUntilAutoCancel;
+    _waitedSeconds = _waitedNow;
     if (widget.order.status == OrderStatus.placed) _startTimer();
   }
 
   void _startTimer() {
     Future.delayed(const Duration(seconds: 1), () {
-      if (!mounted) return;
-      setState(() => _secondsLeft = widget.order.secondsUntilAutoCancel);
-      if (_secondsLeft > 0) _startTimer();
+      if (!mounted || widget.order.status != OrderStatus.placed) return;
+      setState(() => _waitedSeconds = _waitedNow);
+      _startTimer();
     });
   }
 
@@ -676,7 +652,7 @@ class _OrderCardState extends State<_OrderCard> {
 
           // Actions
           if (order.status == OrderStatus.placed) ...[
-            _TimerBar(secondsLeft: _secondsLeft),
+            _TimerBar(waitedSeconds: _waitedSeconds),
             const SizedBox(height: AppSpacing.sm),
             if (isLoading)
               const Center(
@@ -685,7 +661,7 @@ class _OrderCardState extends State<_OrderCard> {
               Row(children: [
                 const Expanded(
                   child: Text(
-                    'Queued - capacity and batch controls start preparation automatically.',
+                    'Queued - tap FIRE to start. Starts by itself while fewer than your auto-start limit are cooking.',
                     style: TextStyle(fontSize: 14, color: AppColors.grey600),
                   ),
                 ),
@@ -880,35 +856,38 @@ class _RejectResult {
   const _RejectResult({this.error});
 }
 
+/// How long the student has been waiting for this queued order. The server does not auto-accept or refund on a
+/// timer, so this only nudges the stall: grey, then amber after 2 minutes, red after 3.
 class _TimerBar extends StatelessWidget {
-  final int secondsLeft;
-  const _TimerBar({required this.secondsLeft});
+  final int waitedSeconds;
+  const _TimerBar({required this.waitedSeconds});
 
   @override
   Widget build(BuildContext context) {
-    final frac = (secondsLeft / 180.0).clamp(0.0, 1.0);
-    final isUrgent = secondsLeft <= 60;
+    final m = waitedSeconds ~/ 60;
+    final s = (waitedSeconds % 60).toString().padLeft(2, '0');
+    final waited = m > 0 ? '${m}m ${s}s' : '${waitedSeconds}s';
+    final late = waitedSeconds >= 180;
+    final soon = waitedSeconds >= 120;
+    final color = late ? AppColors.errorRed : soon ? AppColors.warningAmber : AppColors.textSecondary;
+    final text = late
+        ? 'Student waiting $waited - start or reject now'
+        : soon
+            ? 'Waiting $waited - please start soon'
+            : 'Waiting $waited';
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.timer_outlined,
-            size: 14,
-            color: isUrgent ? AppColors.errorRed : AppColors.textSecondary),
+        Icon(Icons.timer_outlined, size: 14, color: color),
         const SizedBox(width: AppSpacing.xs),
-        Text(
-          isUrgent
-              ? 'HURRY: $secondsLeft s before refund'
-              : 'Auto-accept in: $secondsLeft s',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isUrgent ? FontWeight.w700 : FontWeight.w400,
-            color: isUrgent ? AppColors.errorRed : AppColors.textSecondary,
-          ),
+        Expanded(
+          child: Text(text,
+              style: TextStyle(fontSize: 12, fontWeight: soon ? FontWeight.w700 : FontWeight.w400, color: color)),
         ),
       ]),
       const SizedBox(height: AppSpacing.xs),
       LinearProgressIndicator(
-        value: frac,
-        color: isUrgent ? AppColors.errorRed : AppColors.primary,
+        value: (waitedSeconds / 180.0).clamp(0.0, 1.0),
+        color: late ? AppColors.errorRed : soon ? AppColors.warningAmber : AppColors.primary,
         backgroundColor: AppColors.grey200,
       ),
     ]);

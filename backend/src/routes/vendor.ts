@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { badRequest } from '../errors.js';
 import { currentUser, requireAuth, requireRole } from '../middleware/auth.js';
 import * as bills from '../services/bills.js';
+import { getVendorDashboard } from '../services/reports.js';
 import { parseId } from '../util.js';
 
 export const vendorRouter = Router();
@@ -25,6 +26,12 @@ vendorRouter.get('/vendor/bills', async (req, res) => {
 /** My stall: name, canteen and current status. */
 vendorRouter.get('/vendor/stall', async (req, res) => {
   res.json(await bills.getVendorStall(currentUser(req)));
+});
+
+/** Sales dashboard of my stall from real bills: today, this week (Mon-today) or this month, IST. */
+vendorRouter.get('/vendor/reports/dashboard', async (req, res) => {
+  const period = z.enum(['today', 'this_week', 'this_month']).parse(String(req.query.period ?? 'today'));
+  res.json(await getVendorDashboard(currentUser(req), period));
 });
 
 /** Every item of my stall, including switched-off ones, with stock and daily default quantity. */

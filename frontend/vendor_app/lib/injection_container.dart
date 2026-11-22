@@ -17,6 +17,7 @@ import 'data/remote/remote_auth_repository.dart';
 import 'data/remote/remote_order_repository.dart';
 import 'data/remote/remote_menu_repository.dart';
 import 'data/remote/remote_stall_control_repository.dart';
+import 'data/remote/remote_dashboard_repository.dart';
 import 'services/local_storage_service.dart';
 import 'services/audio_service.dart';
 import 'services/tts_service.dart';
@@ -53,8 +54,6 @@ Future<void> initDependencies() async {
     _registerRemoteRepositories(prefs);
   }
 
-  // Dashboard figures: still demo data until the backend has a reports endpoint.
-  sl.registerSingleton<DashboardRepository>(MockDashboardRepository());
 
   // Cubits (singletons so Home shell shares them across tabs)
   sl.registerSingleton<OrdersCubit>(OrdersCubit(
@@ -81,6 +80,8 @@ void _registerRemoteRepositories(SharedPreferences prefs) {
   sl.registerSingleton<StallControlRepository>(RemoteStallControlRepository(api));
   sl.registerSingleton<MenuRepository>(RemoteMenuRepository(api));
   sl.registerSingleton<InventoryRepository>(RemoteInventoryRepository(api));
+  // Sales dashboard from real bills on the server.
+  sl.registerSingleton<DashboardRepository>(RemoteDashboardRepository(api));
   sl.registerSingleton<RealtimeService>(RealtimeService(orders, onDisconnect: orders.disconnect));
 }
 
@@ -95,5 +96,6 @@ void _registerMockRepositories(SharedPreferences prefs) {
   sl.registerSingleton<StallControlRepository>(mockStallControlRepo);
   sl.registerSingleton<MenuRepository>(MockMenuRepository());
   sl.registerSingleton<InventoryRepository>(MockInventoryRepository());
+  sl.registerSingleton<DashboardRepository>(MockDashboardRepository());
   sl.registerSingleton<RealtimeService>(RealtimeService(mockOrderRepo, onDisconnect: mockOrderRepo.stopWatching));
 }

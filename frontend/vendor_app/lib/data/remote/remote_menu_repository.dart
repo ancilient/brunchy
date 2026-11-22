@@ -98,14 +98,15 @@ class RemoteInventoryRepository implements InventoryRepository {
 
   InventoryItem _item(Map<String, dynamic> p, String date) {
     final stock = (p['stockQuantity'] as num).toInt();
-    final daily = (p['dailyDefaultQty'] as num?)?.toInt() ?? 0;
+    // Real units sold today (server). Opening = what the stall started today with, so "sold today" = real sales.
+    final sold = (p['soldToday'] as num?)?.toInt() ?? 0;
     return InventoryItem(
       id: p['id'] as String,
       stallId: p['stallId'] as String,
       menuItemId: p['id'] as String,
       menuItemName: p['name'] as String,
       date: date,
-      openingStock: stock > daily ? stock : daily,
+      openingStock: stock + sold,
       currentStock: stock,
     );
   }
