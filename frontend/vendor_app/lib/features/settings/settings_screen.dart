@@ -13,6 +13,14 @@ import '../auth/auth_cubit.dart';
 import '../../core/widgets/brand_logo.dart';
 import '../../core/widgets/app_dialog.dart';
 
+/// The vendor's contact line: Google accounts store an email here (shown as is); a 10-digit Indian mobile
+/// number gets +91. Anything else is shown unchanged.
+String contactLabel(String raw) {
+  final v = raw.trim();
+  if (RegExp(r'^[6-9]\d{9}$').hasMatch(v)) return '+91 $v';
+  return v;
+}
+
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -22,7 +30,8 @@ class SettingsScreen extends StatelessWidget {
     final storage = sl<LocalStorageService>();
     final vendor = storage.getVendor();
     final today = DateFormatter.todayKey();
-    final stallId = storage.getStallId(today) ?? 'None Selected';
+    // The chosen stall's name (saved with it on Choose Stall); its id meant nothing to vendors.
+    final stallLabel = storage.getStallId(today) != null ? (storage.getStallName() ?? 'Selected') : 'None selected';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -59,7 +68,7 @@ class SettingsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          vendor != null ? '+91 ${vendor.phone}' : 'Not logged in',
+                          vendor != null ? contactLabel(vendor.phone) : 'Not logged in',
                           style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.grey600),
                         ),
                         const SizedBox(height: 4),
@@ -70,7 +79,7 @@ class SettingsScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            'Active Stall: $stallId',
+                            'Active Stall: $stallLabel',
                             style: const TextStyle(fontSize: 11, color: AppColors.brandTeal, fontWeight: FontWeight.bold),
                           ),
                         ),
