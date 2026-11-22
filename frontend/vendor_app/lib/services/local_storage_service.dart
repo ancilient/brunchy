@@ -1,6 +1,7 @@
 // lib/services/local_storage_service.dart
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/utils/date_formatter.dart';
 import '../data/models/vendor.dart';
 
 class LocalStorageService {
@@ -62,6 +63,20 @@ class LocalStorageService {
     await _prefs.remove('stall_$date');
   }
 
+  /// True only when a stall was picked on the Choose Stall screen today (`stall_YYYY-MM-DD`).
+  /// Unlike [getStallId] this ignores the undated `stall_id` saved at login, so a new day asks again.
+  bool hasValidSelectionForToday() => _prefs.getString('stall_${DateFormatter.todayKey()}')?.isNotEmpty ?? false;
+
+  Future<void> saveDailySelection(String stallId) => saveStallSession(stallId, DateFormatter.todayKey());
+
+  /// Forgets the day's stall pick (today's and any left over from earlier days).
+  Future<void> clearDailySelection() async {
+    final dated = RegExp(r'^stall_\d{4}-\d{2}-\d{2}$');
+    for (final key in _prefs.getKeys().where(dated.hasMatch).toList()) {
+      await _prefs.remove(key);
+    }
+  }
+
   // Offline queue support
   List<String> getOfflineQueue() => _prefs.getStringList('offline_queue') ?? [];
 
@@ -91,6 +106,7 @@ class LocalStorageService {
     await _prefs.remove('canteen_id');
     await _prefs.remove('canteen_name');
     await _prefs.remove('offline_queue');
+    await clearDailySelection();
   }
 
   Future<void> clearAll() async => await _prefs.clear();

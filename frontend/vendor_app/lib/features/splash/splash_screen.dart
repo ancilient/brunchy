@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/utils/date_formatter.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../injection_container.dart';
 import '../../services/local_storage_service.dart';
@@ -78,11 +77,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       return;
     }
 
-    final stallId = storage.getStallId(DateFormatter.todayKey());
-    if (stallId != null && stallId.isNotEmpty) {
+    if (storage.hasValidSelectionForToday()) {
       context.go('/home/orders');
     } else {
-      context.go('/choose-stall');
+      context.go('/choose-canteen');
     }
   }
 

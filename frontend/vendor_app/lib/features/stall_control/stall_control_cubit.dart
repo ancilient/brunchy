@@ -74,13 +74,16 @@ class StallControlCubit extends Cubit<StallControlViewState> {
     }
   }
 
-  Future<void> closeForDay() async {
+  /// Returns true when the server closed the stall.
+  Future<bool> closeForDay() async {
     try {
       final id = _requireStall();
       final n = await _repository.closeForDay(stallId: id, staffId: _staffId!);
       emit(StallControlReady(n));
+      return true;
     } catch (e) {
       emit(StallControlFailure(e.toString()));
+      return false;
     }
   }
 

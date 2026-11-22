@@ -2,6 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import '../../../injection_container.dart';
+import '../../../services/local_storage_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../data/models/stall_control.dart';
@@ -103,8 +106,12 @@ class StallControlPanel extends StatelessWidget {
                           context.read<StallControlCubit>().pause(m),
                       child: Text('Pause $m min')),
                 OutlinedButton(
-                    onPressed: () =>
-                        context.read<StallControlCubit>().closeForDay(),
+                    onPressed: () async {
+                      // Clear the day's stall pick only after the server closed the stall.
+                      if (!await context.read<StallControlCubit>().closeForDay()) return;
+                      await sl<LocalStorageService>().clearDailySelection();
+                      if (context.mounted) context.go('/choose-canteen');
+                    },
                     child: const Text('Close for today'))
               ]),
             ]);

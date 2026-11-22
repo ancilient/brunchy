@@ -124,9 +124,10 @@ class SettingsScreen extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.location_city_outlined, color: AppColors.ink),
                   title: const Text('Switch Canteen Location'),
-                  subtitle: Text('Current: ${vendor?.canteenId ?? "canteen_001"}'),
+                  subtitle: Text('Current: ${storage.getCanteenName()}'),
                   trailing: const Icon(Icons.swap_horiz),
-                  onTap: () => _showSwitchCanteenDialog(context),
+                  // Real canteen list from the server, then that canteen's stalls.
+                  onTap: () => context.push('/choose-canteen'),
                 ),
               ],
             ),
@@ -169,39 +170,6 @@ class SettingsScreen extends StatelessWidget {
                   style: theme.textTheme.bodySmall?.copyWith(color: AppColors.grey400, fontSize: 11),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSwitchCanteenDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Select Canteen'),
-        children: [
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.read<AuthCubit>().updateCanteen('canteen_001');
-              context.go('/choose-stall');
-            },
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: Text('Main Campus Canteen (canteen_001)', style: TextStyle(fontSize: 15)),
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.read<AuthCubit>().updateCanteen('canteen_002');
-              context.go('/choose-stall');
-            },
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: Text('North Wing Food Court (canteen_002)', style: TextStyle(fontSize: 15)),
             ),
           ),
         ],

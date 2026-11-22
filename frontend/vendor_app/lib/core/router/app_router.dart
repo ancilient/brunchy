@@ -50,6 +50,10 @@ GoRouter buildRouter() {
         )),
       ),
       GoRoute(
+        path: '/choose-canteen',
+        pageBuilder: (_, state) => sharedAxisPage(state, const ChooseCanteenScreen()),
+      ),
+      GoRoute(
         path: '/choose-stall',
         pageBuilder: (_, state) => sharedAxisPage(state, BlocProvider(
           create: (_) => ChooseStallCubit(sl<AuthRepository>()),
