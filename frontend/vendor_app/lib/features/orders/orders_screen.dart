@@ -90,7 +90,7 @@ class _AcceptingOrdersToggle extends StatelessWidget {
     final accepting = loaded.acceptingOrders;
     final canteenOpen = loaded.canteenOpen;
     final hours = loaded.canteenOpeningTime != null && loaded.canteenClosingTime != null
-        ? ' (hours ${loaded.canteenOpeningTime}–${loaded.canteenClosingTime})'
+        ? ' (hours ${DateFormatter.clock12(loaded.canteenOpeningTime!)} - ${DateFormatter.clock12(loaded.canteenClosingTime!)})'
         : '';
     // Students can order only when this stall accepts orders AND the canteen is inside its hours.
     final String subtitle;

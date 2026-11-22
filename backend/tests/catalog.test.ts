@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { one, pool } from '../src/db/pool.js';
-import { photoUrl, runCatalog } from '../src/db/catalog.js';
+import { clockTime, photoUrl, runCatalog } from '../src/db/catalog.js';
 import { closeAll, resetDb } from './helpers.js';
 
 beforeAll(resetDb);
@@ -38,6 +38,21 @@ describe('catalog commands (names, prices, photos until the admin dashboard)', (
     await expect(runCatalog(['stall:rename', '999', 'Nowhere'])).rejects.toThrow('No stall');
     await expect(runCatalog(['item:photo', '101', 'http://insecure.example/x.jpg'])).rejects.toThrow();
     await expect(runCatalog(['nonsense'])).rejects.toThrow('Commands');
+  });
+
+  it('changes canteen hours, accepting 12-hour or 24-hour times', async () => {
+    expect(clockTime('7:30am')).toBe('07:30:00');
+    expect(clockTime('10pm')).toBe('22:00:00');
+    expect(clockTime('12am')).toBe('00:00:00');
+    expect(clockTime('12:15 PM')).toBe('12:15:00');
+    expect(clockTime('22:00')).toBe('22:00:00');
+    expect(() => clockTime('10')).toThrow();
+    expect(() => clockTime('13pm')).toThrow();
+    expect(await runCatalog(['canteen:hours', '1', '7:30am', '10pm'])).toBe('Canteen 1 hours: 7:30 AM - 10:00 PM');
+    const c = await one(pool, 'SELECT opening_time, closing_time FROM canteens WHERE canteen_id = 1');
+    expect([c?.opening_time, c?.closing_time]).toEqual(['07:30:00', '22:00:00']);
+    expect(await runCatalog(['list'])).toContain('(7:30 AM - 10:00 PM)');
+    await expect(runCatalog(['canteen:hours', '1', '10pm', '9am'])).rejects.toThrow('after opening');
   });
 
   it('turns an uploaded file name into the server photo URL', () => {

@@ -37,6 +37,15 @@ catalog stall:rename 1 "Burger Hub Express"
 catalog item:rename 101 "Classic Cheese Burger"
 ```
 
+## 2b. Change canteen opening hours
+India time. Use `am`/`pm` or 24-hour times; the closing time must be later the same day.
+```bash
+catalog canteen:hours 1 7:30am 10pm
+catalog canteen:hours 2 08:00 22:00
+```
+Students can place orders until closing time minus the canteen's last-order minutes (10 by default). The apps
+show the hours in 12-hour time.
+
 ## 3. Change a price
 ```bash
 catalog item:price 101 85

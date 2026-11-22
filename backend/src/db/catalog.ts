@@ -6,6 +6,7 @@
  *
  *   list                                  canteens, stalls and food items with their ids
  *   canteen:rename <canteenId> "<name>"
+ *   canteen:hours <canteenId> <open> <close>   e.g. 7:30am 10pm (or 07:30 22:00), India time
  *   stall:rename <stallId> "<name>"
  *   item:rename <productId> "<name>"
  *   item:price <productId> <price>        e.g. 85 or 85.50
@@ -35,6 +36,27 @@ const text = (v: string | undefined, what: string) => {
   return t;
 };
 
+/** "7:30am", "10pm", "07:30" or "22:00" -> "HH:MM:00". */
+export function clockTime(value: string | undefined) {
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i.exec((value ?? '').trim());
+  if (!m) return fail('Times look like 7:30am, 10pm, 07:30 or 22:00');
+  let h = Number(m[1]);
+  const min = Number(m[2] ?? 0);
+  const ampm = m[3]?.toLowerCase();
+  if (ampm) {
+    if (h < 1 || h > 12) fail('With am/pm the hour must be 1-12');
+    h = (h % 12) + (ampm === 'pm' ? 12 : 0);
+  } else if (m[2] === undefined) fail('Add am/pm or minutes, e.g. 10pm or 22:00');
+  if (h > 23 || min > 59) fail('Not a real time of day');
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`;
+}
+
+/** "22:00:00" -> "10:00 PM" for messages. */
+const show12 = (t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+};
+
 async function bustMenus() {
   const keys = await redis.keys('menu:*');
   if (keys.length) await redis.del(...keys);
@@ -60,12 +82,12 @@ async function rename(table: 'canteens' | 'stalls' | 'products', column: string,
 }
 
 export async function runCatalog(args: string[]): Promise<string> {
-  const [command, a, b] = args;
+  const [command, a, b, c] = args;
   switch (command) {
     case 'list': {
       const lines: string[] = [];
-      for (const c of await rows(pool, 'SELECT canteen_id, canteen_name FROM canteens WHERE is_active = TRUE ORDER BY canteen_id')) {
-        lines.push(`Canteen ${c.canteen_id}: ${c.canteen_name}`);
+      for (const c of await rows(pool, 'SELECT canteen_id, canteen_name, opening_time, closing_time FROM canteens WHERE is_active = TRUE ORDER BY canteen_id')) {
+        lines.push(`Canteen ${c.canteen_id}: ${c.canteen_name}  (${show12(String(c.opening_time))} - ${show12(String(c.closing_time))})`);
         for (const s of await rows(pool, 'SELECT stall_id, stall_name FROM stalls WHERE canteen_id = ? AND is_active = TRUE ORDER BY stall_id', [c.canteen_id])) {
           lines.push(`  Stall ${s.stall_id}: ${s.stall_name}`);
           for (const p of await rows(pool, 'SELECT product_id, product_name, price, image_url FROM products WHERE stall_id = ? AND is_active = TRUE ORDER BY product_id', [s.stall_id])) {
@@ -77,6 +99,17 @@ export async function runCatalog(args: string[]): Promise<string> {
     }
     case 'canteen:rename':
       return rename('canteens', 'canteen_name', 'canteen_id', id(a, 'Canteen'), text(b, 'Name'));
+    case 'canteen:hours': {
+      const canteenId = id(a, 'Canteen');
+      const open = clockTime(b);
+      const close = clockTime(c);
+      if (close <= open) fail('Closing time must be after opening time (same day)');
+      const before = await one(pool, 'SELECT opening_time, closing_time FROM canteens WHERE canteen_id = ?', [canteenId]);
+      if (!before) fail(`No canteen with id ${canteenId}`);
+      await exec(pool, 'UPDATE canteens SET opening_time = ?, closing_time = ? WHERE canteen_id = ?', [open, close, canteenId]);
+      await audit(pool, ADMIN, 'admin_hours', 'canteens', canteenId, { opening: before!.opening_time, closing: before!.closing_time }, { opening: open, closing: close });
+      return `Canteen ${canteenId} hours: ${show12(open)} - ${show12(close)}`;
+    }
     case 'stall:rename':
       return rename('stalls', 'stall_name', 'stall_id', id(a, 'Stall'), text(b, 'Name'));
     case 'item:rename':
@@ -109,7 +142,7 @@ export async function runCatalog(args: string[]): Promise<string> {
       return `Item ${productId}: ${b === 'yes' ? 'veg' : 'non-veg'}`;
     }
     default:
-      return fail('Commands: list | canteen:rename | stall:rename | item:rename | item:price | item:photo | item:veg (see docs/admin-guide.md)');
+      return fail('Commands: list | canteen:rename | canteen:hours | stall:rename | item:rename | item:price | item:photo | item:veg (see docs/admin-guide.md)');
   }
 }
 
