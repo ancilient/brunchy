@@ -256,7 +256,7 @@ paths:
       tags: [Vendor]
       summary: My stall (from the account) with its current status
       responses:
-        '200': { description: '{ stall: { id, name, canteenId, canteenName, billPrefix, status, pausedUntil, avgPrepMinutes } }' }
+        '200': { description: '{ stall: { id, name, canteenId, canteenName, billPrefix, status, pausedUntil, avgPrepMinutes, canteen: { takingOrders, openingTime, closingTime, lastOrderMinutes } } }. canteen.takingOrders is false outside canteen hours or when the canteen is switched off; students cannot order then, whatever the stall status is.' }
 
   /vendor/products:
     get:

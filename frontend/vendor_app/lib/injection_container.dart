@@ -62,6 +62,9 @@ Future<void> initDependencies() async {
     sl<RealtimeService>(),
     sl<AudioService>(),
     sl<TtsService>(),
+    sl<LocalStorageService>(),
+    // Production: the Accepting orders switch is the server's stall state. Offline demo: stays on the phone.
+    kUseMock ? null : sl<StallControlRepository>(),
   ));
   sl.registerSingleton<MenuCubit>(MenuCubit(sl<MenuRepository>()));
   sl.registerSingleton<InventoryCubit>(InventoryCubit(sl<InventoryRepository>()));

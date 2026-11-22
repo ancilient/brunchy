@@ -19,6 +19,7 @@ class RemoteStallControlRepository implements StallControlRepository {
       _ => StallOperatingMode.open,
     };
     if (mode != StallOperatingMode.emergencyStopped) _emergency.remove(stallId);
+    final canteen = s['canteen'] as Map<String, dynamic>?;
     return StallControlState(
       stallId: stallId,
       mode: mode,
@@ -26,13 +27,17 @@ class RemoteStallControlRepository implements StallControlRepository {
       changedAt: DateTime.now(),
       emergencyReason: mode == StallOperatingMode.emergencyStopped ? emergency?.reason : null,
       emergencyDetail: mode == StallOperatingMode.emergencyStopped ? emergency?.detail : null,
+      canteenTakingOrders: canteen?['takingOrders'] as bool? ?? true,
+      canteenOpeningTime: canteen?['openingTime'] as String?,
+      canteenClosingTime: canteen?['closingTime'] as String?,
     );
   }
 
   Future<StallControlState> _action(String stallId, String staffId, String label, Map<String, dynamic> body, {String? reason}) async {
     final before = await getControl(stallId);
     final r = await _api.post('/vendor/stall/status', body);
-    final after = _state(stallId, r['stall'] as Map<String, dynamic>);
+    _state(stallId, r['stall'] as Map<String, dynamic>); // keeps the emergency bookkeeping in step
+    final after = await getControl(stallId); // full state, including the canteen hours
     (_audit[stallId] ??= []).add(StallControlAuditEntry(
       action: label,
       occurredAt: DateTime.now(),

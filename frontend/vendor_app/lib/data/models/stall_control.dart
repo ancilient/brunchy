@@ -28,6 +28,12 @@ class StallControlState extends Equatable {
   final String? emergencyDetail;
   final bool pendingSync;
 
+  /// The canteen is switched on and inside its opening hours right now (from the server). Students can only
+  /// order when this is true AND the stall accepts new orders.
+  final bool canteenTakingOrders;
+  final String? canteenOpeningTime; // "07:30"
+  final String? canteenClosingTime; // "18:00"
+
   const StallControlState(
       {required this.stallId,
       this.mode = StallOperatingMode.open,
@@ -35,7 +41,10 @@ class StallControlState extends Equatable {
       this.changedAt,
       this.emergencyReason,
       this.emergencyDetail,
-      this.pendingSync = false});
+      this.pendingSync = false,
+      this.canteenTakingOrders = true,
+      this.canteenOpeningTime,
+      this.canteenClosingTime});
   bool get acceptsNewOrders => mode == StallOperatingMode.open;
   bool get canFinishPreparing => true;
   bool get isEmergencyStopped => mode == StallOperatingMode.emergencyStopped;
@@ -47,7 +56,10 @@ class StallControlState extends Equatable {
           EmergencyStopReason? emergencyReason,
           String? emergencyDetail,
           bool clearEmergency = false,
-          bool? pendingSync}) =>
+          bool? pendingSync,
+          bool? canteenTakingOrders,
+          String? canteenOpeningTime,
+          String? canteenClosingTime}) =>
       StallControlState(
         stallId: stallId,
         mode: mode ?? this.mode,
@@ -58,6 +70,9 @@ class StallControlState extends Equatable {
         emergencyDetail:
             clearEmergency ? null : (emergencyDetail ?? this.emergencyDetail),
         pendingSync: pendingSync ?? this.pendingSync,
+        canteenTakingOrders: canteenTakingOrders ?? this.canteenTakingOrders,
+        canteenOpeningTime: canteenOpeningTime ?? this.canteenOpeningTime,
+        canteenClosingTime: canteenClosingTime ?? this.canteenClosingTime,
       );
   @override
   List<Object?> get props => [
@@ -67,7 +82,10 @@ class StallControlState extends Equatable {
         changedAt,
         emergencyReason,
         emergencyDetail,
-        pendingSync
+        pendingSync,
+        canteenTakingOrders,
+        canteenOpeningTime,
+        canteenClosingTime
       ];
 }
 

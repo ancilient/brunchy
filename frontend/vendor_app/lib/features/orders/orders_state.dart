@@ -27,6 +27,12 @@ class OrdersLoaded extends OrdersState {
   final bool isOverrideActive;
   final bool acceptingOrders;
 
+  /// The canteen is inside its opening hours right now (server). When false, students cannot order
+  /// even if this stall is accepting orders.
+  final bool canteenOpen;
+  final String? canteenOpeningTime;
+  final String? canteenClosingTime;
+
   const OrdersLoaded({
     required this.newOrders,
     required this.preparingOrders,
@@ -37,6 +43,9 @@ class OrdersLoaded extends OrdersState {
     this.maxCapacity = 15,
     this.isOverrideActive = false,
     this.acceptingOrders = true,
+    this.canteenOpen = true,
+    this.canteenOpeningTime,
+    this.canteenClosingTime,
   });
 
   int get newOrderCount => newOrders.length;
@@ -111,6 +120,9 @@ class OrdersLoaded extends OrdersState {
     int? maxCapacity,
     bool? isOverrideActive,
     bool? acceptingOrders,
+    bool? canteenOpen,
+    String? canteenOpeningTime,
+    String? canteenClosingTime,
   }) => OrdersLoaded(
         newOrders: newOrders ?? this.newOrders,
         preparingOrders: preparingOrders ?? this.preparingOrders,
@@ -121,6 +133,9 @@ class OrdersLoaded extends OrdersState {
         maxCapacity: maxCapacity ?? this.maxCapacity,
         isOverrideActive: isOverrideActive ?? this.isOverrideActive,
         acceptingOrders: acceptingOrders ?? this.acceptingOrders,
+        canteenOpen: canteenOpen ?? this.canteenOpen,
+        canteenOpeningTime: canteenOpeningTime ?? this.canteenOpeningTime,
+        canteenClosingTime: canteenClosingTime ?? this.canteenClosingTime,
       );
 
   @override
@@ -134,6 +149,9 @@ class OrdersLoaded extends OrdersState {
     maxCapacity,
     isOverrideActive,
     acceptingOrders,
+    canteenOpen,
+    canteenOpeningTime,
+    canteenClosingTime,
   ];
 }
 
