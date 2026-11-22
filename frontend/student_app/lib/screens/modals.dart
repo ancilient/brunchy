@@ -319,7 +319,7 @@ class CanteenPicker extends StatelessWidget {
                                     ]),
                                     const SizedBox(height: 8),
                                     Wrap(spacing: 12, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                                      Row(mainAxisSize: MainAxisSize.min, children: [const LIcon('Clock', size: 14, color: C.slate500), const SizedBox(width: 4), txt('${c.openingTime} - ${c.closingTime}', 12, color: C.slate500)]),
+                                      Row(mainAxisSize: MainAxisSize.min, children: [const LIcon('Clock', size: 14, color: C.slate500), const SizedBox(width: 4), txt(c.hours, 12, color: C.slate500)]),
                                       txt('·', 12, color: C.slate500),
                                       Row(mainAxisSize: MainAxisSize.min, children: [const LIcon('Store', size: 14, color: C.slate500), const SizedBox(width: 4), txt('$stallCount stalls', 12, color: C.slate500)]),
                                     ]),
@@ -335,7 +335,7 @@ class CanteenPicker extends StatelessWidget {
                                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                     pill('CLOSED', bg: C.slate200, fg: C.slate500, size: 12, radius: 8, pad: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
                                     const SizedBox(height: 4),
-                                    txt('Hours ${c.openingTime}–${c.closingTime}', 11, color: C.slate500),
+                                    txt('Hours ${c.hours}', 11, color: C.slate500),
                                   ])
                                 else
                                   pill('OPEN', bg: C.emerald100, fg: C.emerald700, size: 12, radius: 8, pad: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),

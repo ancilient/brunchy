@@ -636,7 +636,17 @@ class AppState extends ChangeNotifier {
     _changed();
     await refreshOrders();
     unawaited(refreshMenu());
+    unawaited(_refreshFreeOrders()); // this order may have used up a free order
     return pending.orderId;
+  }
+
+  /// Re-reads how many fee-free orders the student has left, so the cart stops showing FREE once they are used.
+  Future<void> _refreshFreeOrders() async {
+    try {
+      final me = await api.get('/me');
+      freeOrdersLeft = (me['freeOrdersLeft'] as num?)?.toInt() ?? 0;
+      notifyListeners();
+    } on ApiException catch (_) {}
   }
 
   // ---------------- after payment ----------------

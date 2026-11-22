@@ -280,7 +280,7 @@ class ChooseCanteenScreen extends StatelessWidget {
               txt(c.name, 18, w: w8, font: F.display),
               const SizedBox(height: 8),
               Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 12, children: [
-                Row(mainAxisSize: MainAxisSize.min, children: [const LIcon('Clock', size: 14, color: C.slate500), const SizedBox(width: 4), txt('${c.openingTime} - ${c.closingTime}', 12, color: C.slate500)]),
+                Row(mainAxisSize: MainAxisSize.min, children: [const LIcon('Clock', size: 14, color: C.slate500), const SizedBox(width: 4), txt(c.hours, 12, color: C.slate500)]),
                 txt('·', 12, color: C.slate500),
                 Row(mainAxisSize: MainAxisSize.min, children: [const LIcon('Store', size: 14, color: C.slate500), const SizedBox(width: 4), txt(stalls, 12, color: C.slate500)]),
               ]),

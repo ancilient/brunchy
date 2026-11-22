@@ -1,5 +1,14 @@
 // Data types, same fields and status names as the React app (src/types/canteen.ts).
 
+/// "18:00" or "18:00:00" -> "6:00 PM". Anything unreadable is returned unchanged.
+String clock12(String hhmm) {
+  final m = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(hhmm);
+  if (m == null) return hhmm;
+  final h = int.parse(m.group(1)!) % 24;
+  final h12 = h % 12 == 0 ? 12 : h % 12;
+  return '$h12:${m.group(2)} ${h < 12 ? 'AM' : 'PM'}';
+}
+
 class Canteen {
   Canteen({required this.id, required this.name, required this.openingTime, required this.closingTime, required this.status, required this.distanceMeters});
   final int id;
@@ -8,6 +17,9 @@ class Canteen {
   final String closingTime;
   String status; // 'open' | 'closed'
   final int distanceMeters;
+
+  /// Opening hours in 12-hour time, e.g. "7:30 AM - 10:00 PM".
+  String get hours => '${clock12(openingTime)} - ${clock12(closingTime)}';
 
   factory Canteen.fromJson(Map<String, dynamic> j) => Canteen(
         id: j['canteen_id'] as int,

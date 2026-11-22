@@ -145,7 +145,7 @@ class PeakHoursBar extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '$hour',
+                          '${hour % 12 == 0 ? 12 : hour % 12}${hour < 12 ? 'a' : 'p'}',
                           style: const TextStyle(fontSize: 9, color: AppColors.grey600),
                         ),
                       ],
