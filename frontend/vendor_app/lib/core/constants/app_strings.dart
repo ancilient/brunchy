@@ -13,6 +13,9 @@ class AppStrings {
   static const String chooseStall       = 'Choose Your Stall';
   static const String switchStall       = 'Switch Stall';
   static const String goodMorning       = 'Good morning';
+  static const String goodAfternoon     = 'Good afternoon';
+  static const String goodEvening       = 'Good evening';
+  static const String chooseAnotherCanteen = 'Choose another canteen';
 
   // Orders
   static const String newOrders         = 'New';

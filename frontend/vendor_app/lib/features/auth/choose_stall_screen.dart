@@ -7,7 +7,6 @@ import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_strings.dart';
 import '../../injection_container.dart';
 import '../../services/local_storage_service.dart';
-import '../../core/utils/date_formatter.dart';
 import '../../data/models/stall.dart';
 import '../../data/models/canteen.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -17,6 +16,13 @@ import 'choose_stall_state.dart';
 import '../../core/widgets/brand_logo.dart';
 import '../../core/widgets/app_dialog.dart';
 
+/// "Good morning" before 12:00, "Good afternoon" until 17:00, then "Good evening" (phone's local time).
+String greetingFor(DateTime now) => now.hour < 12
+    ? AppStrings.goodMorning
+    : now.hour < 17
+        ? AppStrings.goodAfternoon
+        : AppStrings.goodEvening;
+
 class ChooseStallScreen extends StatefulWidget {
   const ChooseStallScreen({super.key});
   @override State<ChooseStallScreen> createState() => _ChooseStallScreenState();
@@ -24,7 +30,6 @@ class ChooseStallScreen extends StatefulWidget {
 
 class _ChooseStallScreenState extends State<ChooseStallScreen> {
   String? _canteenId;
-  bool _hasExistingSession = false;
 
   @override
   void initState() {
@@ -33,7 +38,6 @@ class _ChooseStallScreenState extends State<ChooseStallScreen> {
     final vendor = storage.getVendor();
     // The canteen picked on Choose Canteen (saved there); the account's canteen otherwise.
     _canteenId = storage.getCanteenId() ?? vendor?.canteenId ?? 'main_canteen';
-    _hasExistingSession = storage.getStallId(DateFormatter.todayKey()) != null;
     context.read<ChooseStallCubit>().loadStalls(_canteenId!);
   }
 
@@ -63,7 +67,7 @@ class _ChooseStallScreenState extends State<ChooseStallScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Good morning, ${vendor?.name ?? 'Vendor'} 👋',
+              Text('${greetingFor(DateTime.now())}, ${vendor?.name ?? 'Vendor'} 👋',
                   style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: AppSpacing.xs),
               Text('Choose your stall to start the day', style: Theme.of(context).textTheme.bodyLarge),
@@ -92,22 +96,30 @@ class _ChooseStallScreenState extends State<ChooseStallScreen> {
                   return const SizedBox.shrink();
                 },
               )),
-              if (_hasExistingSession) ...[
-                const SizedBox(height: AppSpacing.md),
-                TextButton.icon(
-                  icon: const Icon(Icons.swap_horiz, color: AppColors.primary),
-                  label: const Text(AppStrings.switchStall, style: TextStyle(color: AppColors.primary)),
-                  onPressed: () async {
-                    await sl<LocalStorageService>().clearStallSession(DateFormatter.todayKey());
-                    setState(() => _hasExistingSession = false);
-                  },
-                ),
-              ],
+              // Always offered (also on the empty "No stalls configured" list): pick a different canteen.
+              const SizedBox(height: AppSpacing.md),
+              TextButton.icon(
+                icon: const Icon(Icons.arrow_back, color: AppColors.primary),
+                label: const Text(AppStrings.chooseAnotherCanteen, style: TextStyle(color: AppColors.primary)),
+                onPressed: () => _backToCanteens(context),
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Back to Choose Canteen: pop when it is the screen underneath (normal flow), otherwise open it (e.g. from
+  /// Settings > Change Active Stall), keeping the screen we came from on the back stack.
+  void _backToCanteens(BuildContext context) {
+    final matches = GoRouter.of(context).routerDelegate.currentConfiguration.matches;
+    final below = matches.length >= 2 ? matches[matches.length - 2].matchedLocation : null;
+    if (below == '/choose-canteen' && context.canPop()) {
+      context.pop();
+    } else {
+      context.push('/choose-canteen');
+    }
   }
 
   Widget _buildSkeleton() => GridView.builder(
@@ -187,7 +199,7 @@ class _ChooseCanteenScreenState extends State<ChooseCanteenScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Good morning, ${vendor?.name ?? 'Vendor'} 👋',
+            Text('${greetingFor(DateTime.now())}, ${vendor?.name ?? 'Vendor'} 👋',
                 style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: AppSpacing.xs),
             Text('Choose your canteen', style: Theme.of(context).textTheme.bodyLarge),
