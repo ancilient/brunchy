@@ -4,8 +4,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
-import '../state/app_scope.dart';
-import '../ui/icons.dart';
 import '../ui/theme.dart';
 
 class SplashLogo extends StatefulWidget {
@@ -108,7 +106,6 @@ class Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = AppScope.of(context);
     return Container(
       decoration: BoxDecoration(
         color: C.cream,
@@ -132,40 +129,7 @@ class Header extends StatelessWidget {
                   txt('Campus Canteen Ordering', 10, w: w5, color: C.slate500),
                 ]),
               ),
-              // DEMO CLOCK Speed Multipliers: 1x, 10x, 30x
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(99), border: Border.all(color: C.a(C.amber200, 0.8))),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const LIcon('Clock', size: 12, color: C.brand),
-                  const SizedBox(width: 6),
-                  for (final m in const [1, 10, 30])
-                    Tap(
-                      onTap: () => s.setDemoClockMultiplier(m),
-                      child: AnimatedScale(
-                        scale: s.demoClockMultiplier == m ? 1.05 : 1.0,
-                        duration: const Duration(milliseconds: 150),
-                        child: Container(
-                          width: 24, height: 24,
-                          margin: const EdgeInsets.only(left: 4),
-                          decoration: BoxDecoration(gradient: s.demoClockMultiplier == m ? C.brandGradient : null, shape: BoxShape.circle),
-                          alignment: Alignment.center,
-                          child: txt('${m}x', m == 30 || m == 10 ? 10.0 : 11.0, w: w7, font: F.mono, color: s.demoClockMultiplier == m ? Colors.white : C.slate600),
-                        ),
-                      ),
-                    ),
-                ]),
-              ),
-              const SizedBox(width: 8),
-              // Replay Logo Splash button
-              Tap(
-                onTap: onReplaySplash,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: C.a(C.amber200, 0.8))),
-                  child: const LIcon('RotateCcw', size: 14, color: C.slate500),
-                ),
-              ),
+              // (The demo clock-speed buttons and the replay-splash button were removed: they did nothing for students.)
             ]),
           ),
         ),

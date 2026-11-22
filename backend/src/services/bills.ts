@@ -118,10 +118,15 @@ export async function listVendorProducts(user: AuthUser) {
   const stallId = vendorStall(user);
   const products = await rows(
     pool,
-    `SELECT p.*, (dm.product_id IS NOT NULL) AS on_menu FROM products p
+    `SELECT p.*, (dm.product_id IS NOT NULL) AS on_menu, COALESCE(sold.qty, 0) AS sold_today FROM products p
        LEFT JOIN daily_menu dm ON dm.product_id = p.product_id AND dm.menu_date = ${IST_TODAY}
+       LEFT JOIN (SELECT oi.product_id, SUM(oi.quantity) AS qty FROM order_items oi
+                    JOIN stall_orders so ON so.stall_order_id = oi.stall_order_id
+                   WHERE so.stall_id = ? AND so.bill_date = ${IST_TODAY} AND oi.item_status = 'active'
+                     AND so.status IN ('new','accepted','preparing','ready','collected')
+                   GROUP BY oi.product_id) sold ON sold.product_id = p.product_id
       WHERE p.stall_id = ? ORDER BY p.product_name`,
-    [stallId],
+    [stallId, stallId],
   );
   return {
     products: products.map((p) => ({
@@ -136,6 +141,8 @@ export async function listVendorProducts(user: AuthUser) {
       prepMinutes: p.prep_minutes,
       stockQuantity: p.stock_quantity,
       dailyDefaultQty: p.daily_default_qty,
+      /** Units sold today in paid bills that were not cancelled or refunded (IST day). */
+      soldToday: Number(p.sold_today),
       isActive: Boolean(p.is_active),
       approvalStatus: p.approval_status,
       onTodaysMenu: Boolean(p.on_menu),

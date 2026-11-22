@@ -163,7 +163,7 @@ class InventoryScreen extends StatelessWidget {
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(
                               child: Text(
-                                'Pre-filled from yesterday\'s closing stock. Tap + / − to adjust current physical count.',
+                                'Opening = stock now + units sold today. Tap + / − to set the real count on your counter.',
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: AppColors.ink,
                                       fontWeight: FontWeight.w500,
@@ -228,7 +228,7 @@ class InventoryScreen extends StatelessWidget {
                           const SizedBox(width: AppSpacing.xs),
                           Expanded(
                             child: Text(
-                              'Note: "Sold today" reflects total stock reduction (sales + waste + spoilage). It may differ from the sales dashboard order count.',
+                              'Note: "Sold today" counts units in today\'s paid orders (cancelled orders are not counted). The dashboard counts orders once your stall starts them.',
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: AppColors.grey600,
                                     fontSize: 11,

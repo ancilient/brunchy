@@ -22,8 +22,8 @@ class InventoryItem {
   });
 
   /// soldToday = openingStock - currentStock (computed)
-  /// NOTE: This reflects total stock reduction (sales + waste + spoilage).
-  /// It may differ from dashboard order count. See R-18 in DESIGN.md.
+  /// With the live server, openingStock = current stock + units sold today (server), so this equals real sales
+  /// today. Offline demo: total stock reduction. May differ from the dashboard order count (R-18 in DESIGN.md).
   int get soldToday => openingStock - currentStock;
 
   factory InventoryItem.fromJson(Map<String, dynamic> json) => InventoryItem(

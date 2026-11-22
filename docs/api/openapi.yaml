@@ -263,7 +263,16 @@ paths:
       tags: [Vendor]
       summary: Every item of my stall, including switched-off ones
       responses:
-        '200': { description: '{ products: [{ id, name, price, stockQuantity, dailyDefaultQty, isActive, approvalStatus, onTodaysMenu, ... }] }' }
+        '200': { description: '{ products: [{ id, name, price, stockQuantity, dailyDefaultQty, soldToday, isActive, approvalStatus, onTodaysMenu, ... }] }. soldToday = units in today's (IST) paid bills that were not cancelled or refunded.' }
+
+  /vendor/reports/dashboard:
+    get:
+      tags: [Vendor]
+      summary: Sales dashboard of my stall from real bills
+      parameters:
+        - { name: period, in: query, schema: { type: string, enum: [today, this_week, this_month], default: today } }
+      responses:
+        '200': { description: '{ totalRevenue, orderCount, avgOrderValue, revenueChangePct, orderCountChangePct, aovChangePct, *ChangeIsNew/IsNone flags, chartData: [{ label, revenue, orders }], topItems, slowItems: [{ name, qty, orderCount, revenue }], peakHours: [{ hour, count }], statusSplit: { collected, cancelled, accepted }, avgPrepMinutes }. Counts bills the stall accepted (accepted, preparing, ready, collected); money is the stall item total (no platform fee). Periods are IST: today, Monday-today, 1st-today; changes compare with the same span just before.' }
 
   /vendor/bills/lookup:
     get:
