@@ -557,12 +557,14 @@ class _OrderCardState extends State<_OrderCard> {
                 color: AppColors.primary,
                 borderRadius: BorderRadius.circular(8),
               ),
+              // The bill number identifies the order at the stall. The pickup code is not shown here: the student
+              // says it at the counter and the vendor types it on Handover.
               child: Text(
-                '#${order.counterCode}',
+                order.billNumber,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: 18,
+                  fontSize: 16,
                 ),
               ),
             ),
@@ -581,7 +583,7 @@ class _OrderCardState extends State<_OrderCard> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'Bill #${order.billNumber} • ${DateFormatter.displayTime(order.placedAt)}',
+                    '${order.orderCode.isNotEmpty ? 'Order ${order.orderCode}' : 'Bill ${order.billNumber}'} • ${DateFormatter.displayTime(order.placedAt)}',
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall

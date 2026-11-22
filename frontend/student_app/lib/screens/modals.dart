@@ -1,6 +1,6 @@
 // PayModal.tsx, CheckoutShortageModal.tsx, CanteenSelectorModal.tsx, CustomerCareModal.tsx
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
 import '../payments/payment_mode.dart';
@@ -482,11 +482,8 @@ class CustomerCareModal extends StatefulWidget {
 }
 
 class _CustomerCareModalState extends State<CustomerCareModal> {
-  static const _desks = [('Main Canteen', '+91 98450 00111'), ('Advance Block', '+91 98450 00222')];
-
-  bool _submitted = false;
-  int? _copied; // which desk number was just copied
   final _issue = TextEditingController();
+  bool _submitted = false;
 
   @override
   void initState() {
@@ -500,94 +497,120 @@ class _CustomerCareModalState extends State<CustomerCareModal> {
     super.dispose();
   }
 
-  void _copy(int i) {
-    Clipboard.setData(ClipboardData(text: _desks[i].$2.replaceAll(' ', '')));
-    setState(() => _copied = i);
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted && _copied == i) setState(() => _copied = null);
-    });
+  /// The latest Order ID, so Customer Care can find the order quickly.
+  String _orderRef(AppState s) => s.orders.isNotEmpty ? s.orders.first.orderCode : '';
+
+  Future<void> _open(Uri uri) async {
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      final what = uri.scheme == 'mailto' ? 'an email app' : uri.scheme == 'tel' ? 'the dialer' : 'WhatsApp';
+      showAlert(context, 'Could not open $what on this phone.');
+    }
   }
 
-  Widget _desk(int i) {
-    final copied = _copied == i;
-    return Expanded(
-      child: Tap(
-        onTap: () => _copy(i),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-          decoration: BoxDecoration(
-            color: copied ? C.emerald50 : C.cream,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: copied ? C.emerald200 : C.a(C.amber200, 0.8)),
+  /// mailto: with the subject and body filled in (Order ID and name), so the student only has to tap Send.
+  Uri _mail(AppState s, String message) {
+    final ref = _orderRef(s);
+    final lines = [
+      if (message.isNotEmpty) message,
+      if (message.isNotEmpty) '',
+      'Name: ${s.currentUser.name}',
+      if (ref.isNotEmpty) 'Order ID: $ref',
+    ];
+    final subject = ref.isEmpty ? 'Brunchy help' : 'Brunchy help - $ref';
+    // Uri.queryParameters would turn spaces into '+', which some mail apps show literally; encode by hand.
+    return Uri.parse('mailto:${s.supportEmail}?subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(lines.join('\n'))}');
+  }
+
+  Uri _whatsApp(AppState s) {
+    final ref = _orderRef(s);
+    final text = ref.isEmpty ? 'Hi, I need help with Brunchy.' : 'Hi, I need help with my Brunchy order $ref.';
+    return Uri.parse('https://wa.me/${s.supportWhatsapp}?text=${Uri.encodeComponent(text)}');
+  }
+
+  Widget _contact(String icon, String label, String value, VoidCallback onTap) => Expanded(
+        child: Tap(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(color: C.cream, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.a(C.amber200, 0.8))),
+            child: Column(children: [
+              LIcon(icon, size: 18, color: C.brand),
+              const SizedBox(height: 4),
+              txt(label, 12, w: w7, color: C.slate800),
+              const SizedBox(height: 2),
+              FittedBox(fit: BoxFit.scaleDown, child: txt(value, 10, color: C.slate500)),
+            ]),
           ),
-          child: Row(children: [
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                txt(copied ? 'Copied!' : _desks[i].$1, 10, w: w6, color: copied ? C.emerald700 : C.slate500),
-                const SizedBox(height: 2),
-                FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: txt(_desks[i].$2, 12, w: w7, font: F.mono, color: C.slate800)),
-              ]),
-            ),
-            LIcon(copied ? 'Check' : 'Copy', size: 14, color: copied ? C.emerald600 : C.slate400),
-          ]),
         ),
-      ),
-    );
-  }
+      );
 
-  Widget _form() {
-    final canSend = _issue.text.trim().isNotEmpty;
+  Widget _form(AppState s) {
+    final email = s.supportEmail, phone = s.supportPhone, whatsapp = s.supportWhatsapp;
+    final canSend = _issue.text.trim().isNotEmpty && email != null;
+    final contacts = <Widget>[
+      if (email != null) _contact('Mail', 'Email', email, () => _open(_mail(s, ''))),
+      if (phone != null) _contact('Phone', 'Call', phone, () => _open(Uri(scheme: 'tel', path: phone))),
+      if (whatsapp != null) _contact('MessageCircle', 'WhatsApp', '+$whatsapp', () => _open(_whatsApp(s))),
+    ];
+    final ref = _orderRef(s);
     return Column(key: const ValueKey('form'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      txt('CALL A DESK', 10, w: w7, color: C.slate400, spacing: 0.6),
-      const SizedBox(height: 8),
-      Row(children: [_desk(0), const SizedBox(width: 10), _desk(1)]),
-      const SizedBox(height: 16),
-      txt('OR MESSAGE US', 10, w: w7, color: C.slate400, spacing: 0.6),
-      const SizedBox(height: 8),
-      Container(
-        padding: const EdgeInsets.fromLTRB(14, 4, 5, 4),
-        decoration: BoxDecoration(color: C.slate50, borderRadius: BorderRadius.circular(22), border: Border.all(color: C.slate200)),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(
-            child: TextField(
-              controller: _issue,
-              minLines: 1,
-              maxLines: 3,
-              style: ts(12, color: C.slate800),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                hintText: 'UPI deducted but order delayed…',
-                hintStyle: ts(12, color: C.slate400),
+      if (contacts.isEmpty)
+        txt('Customer Care contacts are not set up yet. Please ask at the canteen counter.', 12, color: C.slate600)
+      else ...[
+        txt('CONTACT US', 10, w: w7, color: C.slate400, spacing: 0.6),
+        const SizedBox(height: 8),
+        Row(children: [
+          for (var i = 0; i < contacts.length; i++) ...[if (i > 0) const SizedBox(width: 8), contacts[i]],
+        ]),
+      ],
+      if (email != null) ...[
+        const SizedBox(height: 16),
+        txt('OR DESCRIBE THE PROBLEM', 10, w: w7, color: C.slate400, spacing: 0.6),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 4, 5, 4),
+          decoration: BoxDecoration(color: C.slate50, borderRadius: BorderRadius.circular(22), border: Border.all(color: C.slate200)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Expanded(
+              child: TextField(
+                controller: _issue,
+                minLines: 1,
+                maxLines: 3,
+                style: ts(12, color: C.slate800),
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  hintText: 'Paid but order delayed…',
+                  hintStyle: ts(12, color: C.slate400),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Tap(
-            onTap: canSend
-                ? () {
-                    FocusScope.of(context).unfocus();
-                    setState(() => _submitted = true);
-                  }
-                : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 36, height: 36,
-              decoration: BoxDecoration(gradient: canSend ? C.brandGradient : null, color: canSend ? null : C.slate200, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: LIcon('Send', size: 15, color: canSend ? Colors.white : C.slate400),
+            const SizedBox(width: 6),
+            Tap(
+              onTap: canSend
+                  ? () async {
+                      FocusScope.of(context).unfocus();
+                      await _open(_mail(s, _issue.text.trim()));
+                      if (mounted) setState(() => _submitted = true);
+                    }
+                  : null,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(gradient: canSend ? C.brandGradient : null, color: canSend ? null : C.slate200, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: LIcon('Send', size: 15, color: canSend ? Colors.white : C.slate400),
+              ),
             ),
-          ),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const LIcon('ShieldCheck', size: 12, color: C.emerald600),
-        const SizedBox(width: 4),
-        Flexible(child: txt('Refunds are credited automatically to your UPI ID', 10, color: C.slate400)),
-      ]),
+          ]),
+        ),
+      ],
+      if (ref.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        txt('Your latest Order ID: $ref', 10, color: C.slate400, align: TextAlign.center),
+      ],
     ]);
   }
 
@@ -596,19 +619,7 @@ class _CustomerCareModalState extends State<CustomerCareModal> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: C.emerald50, borderRadius: BorderRadius.circular(20), border: Border.all(color: C.emerald200)),
         child: Row(children: [
-          Container(
-            width: 36, height: 36,
-            decoration: const BoxDecoration(color: C.emerald500, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: const LIcon('Check', size: 18, color: Colors.white, strokeWidth: 3),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              txt('Ticket #CC-8821 created', 13, w: w7, color: C.emerald800),
-              txt('The canteen manager has been notified. Expect a reply within 3 minutes.', 11, color: C.slate600),
-            ]),
-          ),
+          Expanded(child: txt('Your email app opened with your message. Tap Send there to reach Customer Care.', 12, color: C.slate700)),
           const SizedBox(width: 8),
           Tap(
             onTap: close,
@@ -626,12 +637,12 @@ class _CustomerCareModalState extends State<CustomerCareModal> {
     return SheetShell(
       onClose: widget.onClose,
       builder: (close) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _sheetHeader('HelpCircle', C.brand, 'Need help?', 'Campus help desk · replies in minutes', close),
+        _sheetHeader('HelpCircle', C.brand, 'Need help?', 'Email, call or WhatsApp Customer Care', close),
         const SizedBox(height: 16),
         AnimatedSize(
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
-          child: AnimatedSwitcher(duration: const Duration(milliseconds: 220), child: _submitted ? _done(close) : _form()),
+          child: AnimatedSwitcher(duration: const Duration(milliseconds: 220), child: _submitted ? _done(close) : _form(AppScope.of(context))),
         ),
       ]),
     );

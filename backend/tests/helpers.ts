@@ -8,6 +8,7 @@ import { type AuthUser, signAccessToken } from '../src/middleware/auth.js';
 import { MOCK_SIGNATURE_HEADER, signMockBody } from '../src/payments/mockGateway.js';
 import { attachRealtime, closeRealtime } from '../src/realtime.js';
 import { redis } from '../src/redis.js';
+import { setFreeOrdersForTests } from '../src/services/fees.js';
 
 const quiet = () => undefined;
 
@@ -17,6 +18,8 @@ export async function resetDb() {
   await migrate(quiet);
   await seed(quiet);
   await redis.flushdb();
+  // Fees always on in tests; tests/fees.test.ts switches the free first orders back on.
+  setFreeOrdersForTests(0);
 }
 
 /** Starts the real HTTP server (with Socket.IO) on a random port. */

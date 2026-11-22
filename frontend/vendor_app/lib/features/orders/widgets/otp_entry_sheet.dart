@@ -37,7 +37,8 @@ class _OtpEntrySheetState extends State<OtpEntrySheet> {
       padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg),
       child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [Expanded(child: Text('Enter 3-Digit Counter Code', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))), IconButton(onPressed: _isSubmitting ? null : () => Navigator.pop(context), icon: const Icon(Icons.close))]),
-        Text('Order #${widget.order.counterCode} • ${widget.order.studentFirstName}'),
+        // Never show the code here: the vendor must type what the student says.
+        Text('Bill ${widget.order.billNumber}${widget.order.orderCode.isNotEmpty ? ' • ${widget.order.orderCode}' : ''} • ${widget.order.studentFirstName}'),
         const SizedBox(height: AppSpacing.lg),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(3, (i) => Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: SizedBox(width: 64, height: 64, child: TextField(controller: _controllers[i], focusNode: _nodes[i], enabled: !_isSubmitting, autofocus: i == 0, textAlign: TextAlign.center, keyboardType: TextInputType.number, maxLength: 1, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold), decoration: const InputDecoration(counterText: '', border: OutlineInputBorder()), onChanged: (v) => _changed(i, v)))))),
         if (_error != null) Padding(padding: const EdgeInsets.only(top: AppSpacing.md), child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.w600))),

@@ -38,6 +38,7 @@ Product productFromApi(Map<String, dynamic> j, int canteenId) => Product(
       stock: (j['stockQuantity'] as num).toInt(),
       approvalStatus: 'published', // the menu endpoint only returns published items
       isActive: true,
+      imageUrl: j['imageUrl'] as String?,
     );
 
 /// Server status -> the status names the screens use.
@@ -76,6 +77,8 @@ StallBill billFromApi(Map<String, dynamic> j) {
     tax: _num(j['tax']),
     total: _num(j['total']),
     platformFee: _num(j['platformFee']),
+    convenienceFee: _num(j['convenienceFee']),
+    orderCode: (j['orderCode'] as String?) ?? '',
     refundedAmount: _num(j['refundedAmount']),
     status: status,
     estimatedTimeMins: (accepted != null && eta != null) ? eta.difference(accepted).inMinutes.clamp(1, 120) : 5,
@@ -107,7 +110,10 @@ Order orderFromApi(Map<String, dynamic> j, {String pickupSlot = 'now'}) => Order
       tax: _num(j['tax']),
       convenienceFee: _num(j['convenienceFee']),
       additionalFee: _num(j['additionalFee']),
-      platformFeePercent: _num(j['platformFeePercent']) > 0 ? _num(j['platformFeePercent']) : 2.36,
+      platformFeePercent: _num(j['platformFeePercent']),
+      convenienceFeePercent: _num(j['convenienceFeePercent']),
+      feesWaived: (j['feesWaived'] as bool?) ?? false,
+      orderCode: (j['orderCode'] as String?) ?? '',
       total: _num(j['total']),
       pickupSlot: pickupSlot,
       status: j['status'] as String,

@@ -111,7 +111,7 @@ class _BillCard extends StatelessWidget {
     // share too; a student cancellation refunds only the item total.
     final stallFault = b.status == 'rejected';
     final refundAmount = b.refundedAmount > 0 ? b.refundedAmount : (stallFault ? b.amountPaid : b.total);
-    final feeKept = isRefunded && b.platformFee > 0 && refundAmount < b.amountPaid;
+    final feeKept = isRefunded && b.feesPaid > 0 && refundAmount < b.amountPaid;
 
     Widget codeBox;
     if (isRefunded || isExpired) {
@@ -123,7 +123,7 @@ class _BillCard extends StatelessWidget {
           txt(
             (isExpired ? 'This bill can no longer be collected.' : '₹${fmtNum(refundAmount)} is being refunded to your original payment method.') +
                 (b.cancelReason != null && !isExpired ? ' Reason: ${b.cancelReason}.' : '') +
-                (!isExpired && feeKept ? ' The ₹${fmtNum(b.platformFee)} platform fee is not refunded when you cancel.' : ''),
+                (!isExpired && feeKept ? ' The ₹${fmtNum(b.feesPaid)} platform and convenience fees are not refunded when you cancel.' : ''),
             11, color: C.slate500, align: TextAlign.center),
         ]),
       );
@@ -188,7 +188,11 @@ class _BillCard extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          txt('Ordered: ${formatTime2Digit(b.createdAt)}', 10, color: C.slate400),
+          // Order ID (what to quote to Customer Care) is not the pickup code.
+          Row(children: [
+            Expanded(child: txt(b.orderCode.isEmpty ? 'Ordered: ${formatTime2Digit(b.createdAt)}' : 'Order ID: ${b.orderCode}', 10, w: w6, color: C.slate500, font: F.mono)),
+            if (b.orderCode.isNotEmpty) txt('Ordered: ${formatTime2Digit(b.createdAt)}', 10, color: C.slate400),
+          ]),
           const SizedBox(height: 4),
           for (final it in b.items)
             Padding(
@@ -203,14 +207,15 @@ class _BillCard extends StatelessWidget {
                 txt('₹${fmtNum(it.price * it.quantity)}', 12, font: F.mono),
               ]),
             ),
-          if (b.platformFee > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(children: [
-                Expanded(child: txt('Platform fee', 12, color: C.slate500)),
-                txt('₹${fmtNum(b.platformFee)}', 12, font: F.mono, color: C.slate500),
-              ]),
-            ),
+          for (final (label, amount) in [('Platform fee', b.platformFee), ('Convenience fee', b.convenienceFee)])
+            if (amount > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(children: [
+                  Expanded(child: txt(label, 12, color: C.slate500)),
+                  txt('₹${fmtNum(amount)}', 12, font: F.mono, color: C.slate500),
+                ]),
+              ),
           Container(
             margin: const EdgeInsets.only(top: 8),
             padding: const EdgeInsets.only(top: 8),
@@ -229,13 +234,18 @@ class _BillCard extends StatelessWidget {
               ],
             ]),
           ),
+          // GST number of the seller (server setting); a placeholder until it is registered.
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: txt('GSTIN: ${s.gstin ?? 'to be added'}', 10, color: C.slate400, font: F.mono),
+          ),
           // The stall accepts and hands over from the vendor app; the student can still cancel before cooking starts.
           if (b.status == 'waiting_for_acceptance' || b.status == 'accepted') ...[
             const SizedBox(height: 12),
             _action('Cancel & Refund (₹${fmtNum(b.total)})', C.rose50, C.rose700, C.rose200, null, () async {
-              final message = b.platformFee > 0
+              final message = b.feesPaid > 0
                   ? 'Cancel this bill? ₹${fmtNum(b.total)} is refunded to your payment method. '
-                      'The ₹${fmtNum(b.platformFee)} platform fee is not refunded when you cancel.'
+                      'The ₹${fmtNum(b.feesPaid)} platform and convenience fees are not refunded when you cancel.'
                   : 'Cancel this bill? The full amount is refunded to your payment method.';
               if (!await showConfirm(context, message)) return;
               final error = await s.cancelStudentBill(b.stallOrderId);

@@ -1,6 +1,6 @@
 import { config } from '../config.js';
 import { type Db, rows } from '../db/pool.js';
-import { iso } from '../util.js';
+import { iso, orderCode } from '../util.js';
 
 export const OPEN_BILL_STATUSES = ['new', 'accepted', 'preparing', 'ready'] as const;
 
@@ -15,6 +15,7 @@ interface BillRow {
   subtotal: number;
   tax: number;
   platform_fee: number;
+  convenience_fee: number;
   total: number;
   refunded_amount: number;
   status: string;
@@ -56,6 +57,8 @@ function serializeBill(b: BillRow, items: ItemRow[]) {
   return {
     id: String(b.stall_order_id),
     orderId: String(b.order_id),
+    /** The Order ID people see and quote (ORD-00014). Not the pickup code. */
+    orderCode: orderCode(b.order_id),
     stallId: String(b.stall_id),
     stallName: b.stall_name,
     canteenId: String(b.canteen_id),
@@ -69,9 +72,11 @@ function serializeBill(b: BillRow, items: ItemRow[]) {
     tax: b.tax,
     /** Item total: what the stall earns. */
     total: b.total,
-    /** This bill's share of the order's platform fee. The student paid total + platformFee for this bill. */
+    /** This bill's share of the order's platform fee. The student paid total + platformFee + convenienceFee. */
     platformFee: b.platform_fee,
-    /** Money refunded (or being refunded) for this bill. Includes the platform fee share only when the stall rejected it. */
+    /** This bill's share of the order's convenience fee. */
+    convenienceFee: b.convenience_fee,
+    /** Money refunded (or being refunded) for this bill. Includes both fee shares only when the stall rejected it. */
     refundedAmount: b.refunded_amount,
     items: items
       .filter((i) => i.stall_order_id === b.stall_order_id)
@@ -129,6 +134,7 @@ interface OrderRow {
   tax: number;
   convenience_fee: number;
   additional_fee: number;
+  fees_waived: number;
   total: number;
   status: string;
   gateway_order_ref: string | null;
@@ -149,6 +155,7 @@ export async function loadOrders(db: Db, where: string, params: unknown[], limit
   const bills = await loadBills(db, 'so.order_id IN (?)', [orders.map((o) => o.order_id)]);
   return orders.map((o) => ({
     id: String(o.order_id),
+    orderCode: orderCode(o.order_id),
     userId: String(o.user_id),
     canteenId: String(o.canteen_id),
     canteenName: o.canteen_name,
@@ -159,6 +166,9 @@ export async function loadOrders(db: Db, where: string, params: unknown[], limit
     /** Computed platform fee for this order (₹), from PLATFORM_FEE_PERCENT of item subtotal. */
     additionalFee: o.additional_fee,
     platformFeePercent: config.PLATFORM_FEE_PERCENT,
+    convenienceFeePercent: config.CONVENIENCE_FEE_PERCENT,
+    /** One of the student's free first orders: no platform or convenience fee. */
+    feesWaived: Boolean(o.fees_waived),
     total: o.total,
     gatewayOrderRef: o.gateway_order_ref,
     paymentExpiresAt: iso(o.payment_expires_at),

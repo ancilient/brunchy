@@ -210,7 +210,17 @@ class _StudentHomeState extends State<StudentHome> {
             width: 64, height: 64,
             decoration: BoxDecoration(color: C.cream, shape: BoxShape.circle, border: Border.all(color: C.amber100)),
             alignment: Alignment.center,
-            child: Text(_emoji(p), style: const TextStyle(fontSize: 30)),
+            clipBehavior: Clip.antiAlias,
+            // The food photo when one is set on the server (catalog item:photo); the emoji otherwise or if it fails.
+            child: p.imageUrl == null
+                ? Text(_emoji(p), style: const TextStyle(fontSize: 30))
+                : Image.network(
+                    p.imageUrl!,
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Text(_emoji(p), style: const TextStyle(fontSize: 30)),
+                  ),
           ),
           const SizedBox(height: 10),
           txt(p.name, 14, w: w7, maxLines: 1, align: TextAlign.center),

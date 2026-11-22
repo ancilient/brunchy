@@ -71,6 +71,7 @@ services:
       API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in deploy/.env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./uploads:/srv/uploads:ro   # food photos (see docs/admin-guide.md)
       - caddy-data:/data
       - caddy-config:/config
     depends_on:

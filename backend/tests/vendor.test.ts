@@ -128,7 +128,8 @@ describe('vendor board and handover', () => {
     expect(await stockOf(102)).toBe(before + 2);
     // The stall's fault, so the student also gets this bill's share of the platform fee back.
     expect(bill.platformFee).toBeGreaterThan(0);
-    const paid = Math.round((bill.total + bill.platformFee) * 100) / 100;
+    expect(bill.convenienceFee).toBeGreaterThan(0);
+    const paid = Math.round((bill.total + bill.platformFee + bill.convenienceFee) * 100) / 100;
     const refund = await one(pool, 'SELECT reason_code, amount, status FROM refunds WHERE stall_order_id = ?', [bill.id]);
     expect(refund).toMatchObject({ reason_code: 'KITCHEN_ISSUE', amount: paid, status: 'requested' });
     expect(r.body.bill.refundedAmount).toBe(paid);
@@ -141,9 +142,12 @@ describe('vendor board and handover', () => {
     ]);
     expect(order.bills.length).toBe(2);
     const feePaise = order.bills.reduce((s: number, b: { platformFee: number }) => s + Math.round(b.platformFee * 100), 0);
+    const convPaise = order.bills.reduce((s: number, b: { convenienceFee: number }) => s + Math.round(b.convenienceFee * 100), 0);
+    expect(convPaise).toBe(Math.round(order.convenienceFee * 100));
     expect(feePaise).toBe(Math.round(order.additionalFee * 100));
     const paidPaise = order.bills.reduce(
-      (s: number, b: { total: number; platformFee: number }) => s + Math.round(b.total * 100) + Math.round(b.platformFee * 100),
+      (s: number, b: { total: number; platformFee: number; convenienceFee: number }) =>
+        s + Math.round(b.total * 100) + Math.round(b.platformFee * 100) + Math.round(b.convenienceFee * 100),
       0,
     );
     expect(paidPaise).toBe(Math.round(order.total * 100));

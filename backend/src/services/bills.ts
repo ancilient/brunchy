@@ -206,8 +206,8 @@ export async function setBillStatus(user: AuthUser, billId: number, input: { sta
         orderId: bill.order_id,
         billId,
         paymentId: await successfulPaymentId(conn, bill.order_id),
-        // The stall turned it down, so the student also gets this bill's share of the platform fee back.
-        amount: toRupees(toPaise(bill.total) + toPaise(bill.platform_fee)),
+        // The stall turned it down, so the student also gets this bill's share of both fees back.
+        amount: toRupees(toPaise(bill.total) + toPaise(bill.platform_fee) + toPaise(bill.convenience_fee)),
         reason: input.reason!,
         requestedBy: user.id,
       });
@@ -319,9 +319,9 @@ export async function setStallStatus(
       await exec(conn, "UPDATE stalls SET status = 'open', paused_until = NULL WHERE stall_id = ?", [stallId]);
     }
     if (input.action === 'emergency') {
-      const notStarted = await rows<{ stall_order_id: number; order_id: number; total: number; platform_fee: number }>(
+      const notStarted = await rows<{ stall_order_id: number; order_id: number; total: number; platform_fee: number; convenience_fee: number }>(
         conn,
-        "SELECT stall_order_id, order_id, total, platform_fee FROM stall_orders WHERE stall_id = ? AND status = 'new' ORDER BY stall_order_id FOR UPDATE",
+        "SELECT stall_order_id, order_id, total, platform_fee, convenience_fee FROM stall_orders WHERE stall_id = ? AND status = 'new' ORDER BY stall_order_id FOR UPDATE",
         [stallId],
       );
       for (const b of notStarted) {
@@ -335,7 +335,7 @@ export async function setStallStatus(
           orderId: b.order_id,
           billId: b.stall_order_id,
           paymentId: await successfulPaymentId(conn, b.order_id),
-          amount: toRupees(toPaise(b.total) + toPaise(b.platform_fee)), // stall's fault: platform fee share too
+          amount: toRupees(toPaise(b.total) + toPaise(b.platform_fee) + toPaise(b.convenience_fee)), // stall's fault: both fee shares too
           reason: 'STALL_EMERGENCY',
           requestedBy: user.id,
         });
