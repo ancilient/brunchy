@@ -22,19 +22,19 @@ class ResponsiveFrame extends StatelessWidget {
 
     if (mq.size.width <= maxAppWidth + 48) {
       return ColoredBox(
-        color: C.cream,
+        color: C.page,
         child: MediaQuery(data: mq.copyWith(textScaler: textScaler), child: child),
       );
     }
 
     // Wide screen: a centred column. Pages see the column's width as the screen width.
     return ColoredBox(
-      color: const Color(0xFFEFE3CC),
+      color: C.slate100,
       child: Center(
         child: Container(
           width: maxAppWidth,
           decoration: BoxDecoration(
-            color: C.cream,
+            color: C.page,
             boxShadow: [BoxShadow(color: C.a(Colors.black, 0.12), blurRadius: 40)],
           ),
           child: ClipRect(

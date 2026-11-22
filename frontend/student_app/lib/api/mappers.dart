@@ -38,6 +38,8 @@ Product productFromApi(Map<String, dynamic> j, int canteenId) => Product(
       stock: (j['stockQuantity'] as num).toInt(),
       approvalStatus: 'published', // the menu endpoint only returns published items
       isActive: true,
+      description: ((j['description'] as String?) ?? '').trim(),
+      isVeg: j['isVeg'] as bool?,
     );
 
 /// Server status -> the status names the screens use.

@@ -57,7 +57,7 @@ class _SplashLogoState extends State<SplashLogo> with SingleTickerProviderStateM
         opacity: _fading ? 0.0 : 1.0,
         duration: const Duration(milliseconds: 350),
         child: Container(
-          color: C.cream,
+          color: C.page,
           child: Stack(children: [
             Center(
               child: Lottie.asset(
@@ -101,14 +101,16 @@ class _SplashLogoState extends State<SplashLogo> with SingleTickerProviderStateM
 }
 
 class Header extends StatelessWidget {
-  const Header({super.key, required this.onReplaySplash});
+  const Header({super.key, required this.onReplaySplash, this.initials, this.onOpenProfile});
   final VoidCallback onReplaySplash;
+  final String? initials; // shown as the profile avatar once signed in
+  final VoidCallback? onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: C.cream,
+        color: C.page,
         border: Border(bottom: BorderSide(color: C.a(C.amber200, 0.6))),
         boxShadow: [BoxShadow(color: C.a(Colors.black, 0.05), blurRadius: 2, offset: const Offset(0, 1))],
       ),
@@ -126,10 +128,33 @@ class Header extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                   txt('Brunchy', 20, w: w8, font: F.display, spacing: -0.5, height: 1),
                   const SizedBox(height: 2),
-                  txt('Campus Canteen Ordering', 10, w: w5, color: C.slate500),
+                  txt('Pre-Book • Skip Queue • Enjoy Food', 10, w: w5, color: C.slate500),
                 ]),
               ),
               // (The demo clock-speed buttons and the replay-splash button were removed: they did nothing for students.)
+              if (initials != null)
+                Tap(
+                  scale: 0.94,
+                  onTap: onOpenProfile,
+                  child: Container(
+                    width: 40, height: 40,
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: C.a(C.amber200, 0.8)),
+                      boxShadow: [BoxShadow(color: C.a(Colors.black, 0.05), blurRadius: 4, offset: const Offset(0, 1))],
+                    ),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [C.amber100, C.orange200]),
+                      ),
+                      alignment: Alignment.center,
+                      child: txt(initials!, 12, w: w7, color: C.slate700),
+                    ),
+                  ),
+                ),
             ]),
           ),
         ),

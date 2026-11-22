@@ -337,7 +337,7 @@ class _LoginSuccessScreenState extends State<LoginSuccessScreen> with TickerProv
         opacity: _leaving ? 0 : 1,
         duration: const Duration(milliseconds: 300),
         child: Material(
-          color: C.cream,
+          color: C.page,
           child: LayoutBuilder(
             builder: (context, box) => SingleChildScrollView(
               child: ConstrainedBox(
