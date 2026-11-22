@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { badRequest } from '../errors.js';
 import { currentUser, requireAuth, requireRole } from '../middleware/auth.js';
+import { openVendorStallSession } from '../services/auth.js';
 import * as bills from '../services/bills.js';
 import { getVendorDashboard } from '../services/reports.js';
 import { parseId } from '../util.js';
@@ -21,6 +22,21 @@ vendorRouter.get('/vendor/bills', async (req, res) => {
   const date =
     req.query.date === undefined ? undefined : z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date is YYYY-MM-DD').parse(String(req.query.date));
   res.json(await bills.listVendorBills(currentUser(req), String(req.query.status ?? 'active'), date));
+});
+
+/**
+ * Choose the stall to work at (vendor app, after picking a canteen). Returns a new token pair scoped to that stall;
+ * every /vendor/* endpoint and the socket then use it. 403 STALL_NOT_ALLOWED without a vendor_stall_access row.
+ */
+vendorRouter.post('/vendor/session/stall', async (req, res) => {
+  const body = z
+    .object({
+      stallId: z.union([z.string(), z.number()]),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date is YYYY-MM-DD').optional(), // informational
+      forceTakeover: z.boolean().default(false),
+    })
+    .parse(req.body ?? {});
+  res.json(await openVendorStallSession(currentUser(req), idParam(body.stallId, 'stall')));
 });
 
 /** My stall: name, canteen and current status. */

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { badRequest } from '../errors.js';
-import { requireAuth } from '../middleware/auth.js';
+import { currentUser, requireAuth, requireRole } from '../middleware/auth.js';
+import { listVendorStalls } from '../services/auth.js';
 import { getMenu, listCanteens } from '../services/menu.js';
 import { parseId } from '../util.js';
 
@@ -22,4 +23,11 @@ canteensRouter.get('/canteens/:id/menu', requireAuth, async (req, res) => {
     return;
   }
   res.json(body);
+});
+
+/** Vendor app, after sign-in: the stalls of this canteen the vendor may open (then POST /vendor/session/stall). */
+canteensRouter.get('/canteens/:id/stalls', requireAuth, requireRole('vendor'), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) throw badRequest('INVALID_ID', 'Invalid canteen id');
+  res.json(await listVendorStalls(currentUser(req).id, id));
 });

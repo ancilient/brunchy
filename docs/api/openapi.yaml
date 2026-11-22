@@ -100,6 +100,7 @@ paths:
       tags: [Auth]
       security: []
       summary: Swap a refresh token for a new pair (the old refresh token stops working)
+      description: A refresh token from POST /vendor/session/stall stays scoped to that stall while the vendor still has access to it and the stall is active; otherwise (and for normal logins) the new access token uses the account's own stall.
       requestBody:
         required: true
         content: { application/json: { schema: { type: object, required: [refreshToken], properties: { refreshToken: { type: string } } } } }
@@ -142,6 +143,20 @@ paths:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Menu' } } } }
         '304': { description: Not modified }
         '404': { $ref: '#/components/responses/Error' }
+
+  /canteens/{id}/stalls:
+    get:
+      tags: [Vendor]
+      summary: The stalls of this canteen the vendor may open (vendor only)
+      description: Vendor app, after sign-in and choosing a canteen. Only active stalls with a vendor_stall_access row for the caller, ordered by name. No accessible stalls gives an empty list.
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { type: object, properties: { stalls: { type: array, items: { $ref: '#/components/schemas/VendorStallChoice' } } } } } }
+        '400': { description: 'INVALID_ID', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 'FORBIDDEN: not a vendor', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: "CANTEEN_NOT_FOUND: unknown or inactive canteen (never the generic NOT_FOUND code, which the app reads as 'endpoint missing')", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /checkout:
     post:
@@ -251,6 +266,43 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { type: object, properties: { bills: { type: array, items: { $ref: '#/components/schemas/Bill' } } } } } } }
 
+  /vendor/session/stall:
+    post:
+      tags: [Vendor]
+      summary: Open a session for the chosen stall (new token pair scoped to it)
+      description: The access token carries stallId = the chosen stall and canteenId = its canteen; every /vendor/* endpoint, the reports and the socket room then use that stall. The refresh token keeps the choice (see /auth/refresh). Audited as vendor_session_stall. Stalls are not exclusively claimed yet, so forceTakeover is accepted but has no effect (no 409 STALL_ALREADY_CLAIMED).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stallId]
+              properties:
+                stallId: { type: string, example: '7' }
+                date: { type: string, format: date, description: 'Informational, ignored' }
+                forceTakeover: { type: boolean, default: false }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+                  stall:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      canteenId: { type: string }
+                      canteenName: { type: string }
+        '400': { description: 'INVALID_ID or VALIDATION_ERROR', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "STALL_NOT_ALLOWED ('You are not allowed to open this stall'), or FORBIDDEN for non-vendors", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 'STALL_NOT_FOUND: unknown or inactive stall', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /vendor/stall:
     get:
       tags: [Vendor]
@@ -263,7 +315,7 @@ paths:
       tags: [Vendor]
       summary: Every item of my stall, including switched-off ones
       responses:
-        '200': { description: '{ products: [{ id, name, price, stockQuantity, dailyDefaultQty, soldToday, isActive, approvalStatus, onTodaysMenu, ... }] }. soldToday = units in today's (IST) paid bills that were not cancelled or refunded.' }
+        '200': { description: '{ products: [{ id, name, price, stockQuantity, dailyDefaultQty, soldToday, isActive, approvalStatus, onTodaysMenu, ... }] }. soldToday = units in today''s (IST) paid bills that were not cancelled or refunded.' }
 
   /vendor/reports/dashboard:
     get:
@@ -378,6 +430,12 @@ components:
       type: object
       properties:
         error: { type: object, properties: { code: { type: string }, message: { type: string }, details: { type: object } } }
+    VendorStallChoice:
+      type: object
+      properties:
+        id: { type: string, example: '7' }
+        canteenId: { type: string, example: '2' }
+        name: { type: string, example: 'Juice Bar' }
     User:
       type: object
       properties:
