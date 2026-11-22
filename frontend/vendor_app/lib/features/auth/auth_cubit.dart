@@ -4,7 +4,6 @@ import '../../data/models/canteen.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../services/local_storage_service.dart';
 import '../../core/errors/app_exception.dart';
-import '../../core/utils/date_formatter.dart';
 import '../../data/remote/google_auth.dart';
 import 'auth_state.dart';
 
@@ -29,7 +28,6 @@ class AuthCubit extends Cubit<AuthState> {
       final result = await signIn();
       await _authRepository.saveVendorLocally(result.vendor, result.token);
       await _storage.saveStallInfo(result.stallId, result.stallName);
-      await _storage.saveStallSession(result.stallId, DateFormatter.todayKey());
       emit(AuthSuccess(result.vendor));
     } on GoogleAuthCancelled {
       emit(const AuthInitial()); // the vendor closed Google's account picker

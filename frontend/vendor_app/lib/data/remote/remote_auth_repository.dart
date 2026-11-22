@@ -116,9 +116,19 @@ class RemoteAuthRepository implements AuthRepository {
     return (r['canteens'] as List).cast<Map<String, dynamic>>().map((c) => Canteen(id: c['id'] as String, name: c['name'] as String)).toList();
   }
 
+  /// The backend answers an endpoint it does not have yet with 404 NOT_FOUND.
+  static bool _endpointMissing(AppException e) => e.statusCode == 404 && e.code == 'NOT_FOUND';
+
   @override
   Future<List<Stall>> getStalls(String canteenId) async {
-    // A vendor works at one stall: that is the only one offered.
+    // GET /canteens/:id/stalls: the stalls of this canteen that this vendor account may open.
+    try {
+      final r = await _api.get('/canteens/$canteenId/stalls');
+      return (r['stalls'] as List).cast<Map<String, dynamic>>().map(Stall.fromJson).toList();
+    } on AppException catch (e) {
+      if (!_endpointMissing(e)) rethrow;
+    }
+    // Older backend: a vendor works at one stall, so that is the only one offered.
     final s = (await _api.get('/vendor/stall'))['stall'] as Map<String, dynamic>;
     if (s['canteenId'] != canteenId) return const [];
     return [Stall(id: s['id'] as String, canteenId: s['canteenId'] as String, name: s['name'] as String, iconEmoji: '🍽️')];
@@ -126,6 +136,21 @@ class RemoteAuthRepository implements AuthRepository {
 
   @override
   Future<void> selectStall({required String stallId, required String date, bool forceTakeover = false}) async {
+    // POST /vendor/session/stall: the server checks the vendor may open this stall and returns tokens
+    // scoped to it, so every /vendor endpoint and the live order socket then work on the chosen stall.
+    try {
+      final r = await _api.post('/vendor/session/stall', {'stallId': stallId, 'date': date, 'forceTakeover': forceTakeover});
+      await _api.saveSession(r['accessToken'] as String, r['refreshToken'] as String);
+      final stall = r['stall'] as Map<String, dynamic>;
+      await _prefs.setString('stall_id', stall['id'] as String);
+      await _prefs.setString('stall_name', stall['name'] as String);
+      await _prefs.setString('canteen_id', stall['canteenId'] as String);
+      await _prefs.setString('canteen_name', stall['canteenName'] as String);
+      return;
+    } on AppException catch (e) {
+      if (!_endpointMissing(e)) rethrow;
+    }
+    // Older backend: only the account's own stall can be opened.
     final s = (await _api.get('/vendor/stall'))['stall'] as Map<String, dynamic>;
     if (s['id'] != stallId) {
       throw AppException(message: 'This phone number works at ${s['name']}.', code: 'WRONG_STALL');

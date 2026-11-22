@@ -8,6 +8,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/widgets/brand_logo.dart';
+import '../../injection_container.dart';
+import '../../services/local_storage_service.dart';
 import 'auth_cubit.dart';
 import 'auth_state.dart';
 
@@ -61,7 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is AuthSuccess) {
-          context.go('/home/orders');
+          // Stall picked earlier today: straight to Home. Otherwise pick the stall first.
+          context.go(sl<LocalStorageService>().hasValidSelectionForToday() ? '/home/orders' : '/choose-canteen');
         } else if (state is AuthError) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
         }

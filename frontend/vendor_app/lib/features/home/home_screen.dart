@@ -271,9 +271,12 @@ class _HomeScreenState extends State<HomeScreen> {
       // [API-017] POST /stalls/{stallId}/inventory/end-day
       await sl<InventoryRepository>()
           .closeDay(stallId: stallId, forceClose: activeCount > 0);
+      // Only reached when closeDay succeeded: the day is over, so the stall must be picked again.
+      await storage.clearDailySelection();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Day ended. Tomorrow\'s opening stock saved.')));
+        context.go('/choose-canteen');
       }
     }
   }
