@@ -1,10 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { config } from '../config.js';
-import { exec, isDuplicateKey, one, pool } from '../db/pool.js';
+import { exec, isDuplicateKey, one, pool, rows } from '../db/pool.js';
 import { AppError, badRequest, forbidden, notFound, unauthorized } from '../errors.js';
 import { type AuthUser, type Role, signAccessToken } from '../middleware/auth.js';
 import { idStr } from '../util.js';
+import { audit } from './audit.js';
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -52,14 +53,22 @@ export const loginOptions = () => ({
   devLogin: config.DEV_LOGIN,
 });
 
-async function issueTokens(user: UserRow) {
+/** The stall a vendor session is opened for (POST /vendor/session/stall). Without it, users.stall_id is used. */
+export interface StallScope {
+  stallId: number;
+  canteenId: number;
+}
+
+async function issueTokens(user: UserRow, scope?: StallScope) {
   const refreshToken = randomBytes(32).toString('hex');
-  await exec(pool, 'INSERT INTO refresh_tokens (token_hash, user_id, expires_at) VALUES (?, ?, UTC_TIMESTAMP() + INTERVAL ? DAY)', [
-    sha256(refreshToken),
-    user.user_id,
-    config.JWT_REFRESH_DAYS,
-  ]);
-  return { accessToken: signAccessToken(toAuthUser(user)), refreshToken, user: serializeUser(user) };
+  await exec(
+    pool,
+    'INSERT INTO refresh_tokens (token_hash, user_id, stall_id, expires_at) VALUES (?, ?, ?, UTC_TIMESTAMP() + INTERVAL ? DAY)',
+    [sha256(refreshToken), user.user_id, scope?.stallId ?? null, config.JWT_REFRESH_DAYS],
+  );
+  const authUser = scope ? { ...toAuthUser(user), stallId: scope.stallId, canteenId: scope.canteenId } : toAuthUser(user);
+  const userJson = scope ? { ...serializeUser(user), stallId: String(scope.stallId), canteenId: String(scope.canteenId) } : serializeUser(user);
+  return { accessToken: signAccessToken(authUser), refreshToken, user: userJson };
 }
 
 /** A student account can't sign in to the vendor app and the other way round. */
@@ -171,10 +180,76 @@ export async function refresh(refreshToken: string) {
     [hash],
   );
   if (result.affectedRows !== 1) throw unauthorized('Your session has expired. Please log in again.');
-  const row = await one<{ user_id: number }>(pool, 'SELECT user_id FROM refresh_tokens WHERE token_hash = ?', [hash]);
+  const row = await one<{ user_id: number; stall_id: number | null }>(pool, 'SELECT user_id, stall_id FROM refresh_tokens WHERE token_hash = ?', [hash]);
   const user = await findUserById(row!.user_id);
   if (!user) throw unauthorized();
-  return issueTokens(user);
+  // A session opened for a chosen stall stays on that stall while the vendor may still open it (and it is active);
+  // otherwise (old tokens, or access removed) it falls back to users.stall_id as before.
+  const stall = row!.stall_id ? await accessibleStall(user.user_id, row!.stall_id) : undefined;
+  return issueTokens(user, stall ? { stallId: stall.stall_id, canteenId: stall.canteen_id } : undefined);
+}
+
+// ---------------------------------------------------------------- vendor: choose canteen and stall
+
+interface AccessibleStallRow {
+  stall_id: number;
+  stall_name: string;
+  canteen_id: number;
+  canteen_name: string;
+}
+
+/** The stall, if it is active and this vendor has a vendor_stall_access row for it. */
+const accessibleStall = (userId: number, stallId: number) =>
+  one<AccessibleStallRow>(
+    pool,
+    `SELECT s.stall_id, s.stall_name, s.canteen_id, c.canteen_name
+       FROM vendor_stall_access a
+       JOIN stalls s ON s.stall_id = a.stall_id
+       JOIN canteens c ON c.canteen_id = s.canteen_id
+      WHERE a.user_id = ? AND a.stall_id = ? AND s.is_active = TRUE`,
+    [userId, stallId],
+  );
+
+/** GET /canteens/:id/stalls: the active stalls of the canteen this vendor may open. 404 for an unknown canteen. */
+export async function listVendorStalls(userId: number, canteenId: number) {
+  // Never the generic 'NOT_FOUND' code: the vendor app reads 404 + NOT_FOUND as "this endpoint does not exist yet".
+  const canteen = await one(pool, 'SELECT canteen_id FROM canteens WHERE canteen_id = ? AND is_active = TRUE', [canteenId]);
+  if (!canteen) throw notFound('CANTEEN_NOT_FOUND', 'Canteen not found');
+  const stalls = await rows<{ stall_id: number; canteen_id: number; stall_name: string }>(
+    pool,
+    `SELECT s.stall_id, s.canteen_id, s.stall_name
+       FROM stalls s JOIN vendor_stall_access a ON a.stall_id = s.stall_id AND a.user_id = ?
+      WHERE s.canteen_id = ? AND s.is_active = TRUE
+      ORDER BY s.stall_name`,
+    [userId, canteenId],
+  );
+  return { stalls: stalls.map((s) => ({ id: String(s.stall_id), canteenId: String(s.canteen_id), name: s.stall_name })) };
+}
+
+/**
+ * POST /vendor/session/stall: a new token pair scoped to the chosen stall. Every /vendor/* endpoint, the reports and
+ * the socket room read stallId from the access token, so they follow the choice without changes.
+ * forceTakeover is accepted for the app's "Take over?" flow; stalls are not exclusively claimed yet.
+ */
+export async function openVendorStallSession(user: AuthUser, stallId: number) {
+  const stall = await one<{ stall_id: number; is_active: number }>(pool, 'SELECT stall_id, is_active FROM stalls WHERE stall_id = ?', [stallId]);
+  if (!stall || !stall.is_active) throw notFound('STALL_NOT_FOUND', 'Stall not found');
+  const allowed = await accessibleStall(user.id, stallId);
+  if (!allowed) throw forbidden('STALL_NOT_ALLOWED', 'You are not allowed to open this stall');
+  const row = await findUserById(user.id);
+  if (!row) throw unauthorized();
+  const tokens = await issueTokens(row, { stallId: allowed.stall_id, canteenId: allowed.canteen_id });
+  await audit(pool, { id: user.id, role: user.role }, 'vendor_session_stall', 'stalls', stallId, { stallId: user.stallId }, { stallId });
+  return {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    stall: {
+      id: String(allowed.stall_id),
+      name: allowed.stall_name,
+      canteenId: String(allowed.canteen_id),
+      canteenName: allowed.canteen_name,
+    },
+  };
 }
 
 export async function logout(refreshToken: string) {
