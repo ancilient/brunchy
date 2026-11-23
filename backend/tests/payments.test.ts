@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { exec, one, pool } from '../src/db/pool.js';
 import { expireOrder } from '../src/services/holds.js';
-import { api, closeAll, key, placePaidOrder, resetDb, setStock, startServer, stockOf, studentToken, webhook } from './helpers.js';
+import { api, closeAll, createStudents, key, payMock, placePaidOrder, resetDb, setStock, startServer, stockOf, studentToken, webhook } from './helpers.js';
 
 let server: Awaited<ReturnType<typeof startServer>>;
 let client: ReturnType<typeof api>;
@@ -71,6 +71,31 @@ describe('payment webhook', () => {
       expect(bill.status).toBe('new');
       expect(bill.pickupCode).toMatch(/^[1-9]\d{2}$/);
     }
+  });
+
+  it('lunch rush: 100 students check out and pay at the same time, two stalls each; every payment gets its bills', async () => {
+    for (const p of [102, 201, 301, 401]) await setStock(p, 1000);
+    const students = await createStudents(100);
+    const pairs = [['102', '201'], ['201', '301'], ['301', '401'], ['401', '102'], ['201', '102'], ['401', '301']];
+    // Each student checks out and pays straight away, all at once, so checkouts and payments overlap like at lunch.
+    const results = await Promise.all(
+      students.map(async (id, i) => {
+        const [a, b] = pairs[i % pairs.length];
+        const token = studentToken(id);
+        const co = await client.post('/checkout', { canteenId: '1', items: [{ productId: a, qty: 1 }, { productId: b, qty: 1 }], idempotencyKey: key() }, token);
+        const pay = await payMock(client, co.body.order.id, token);
+        return { orderId: Number(co.body.order.id), checkout: co.status, pay: pay.status };
+      }),
+    );
+    expect(results.map((r) => [r.checkout, r.pay])).toEqual(results.map(() => [201, 200]));
+    const bills = await one<{ n: number; distinctNos: number }>(
+      pool,
+      `SELECT COUNT(*) AS n, COUNT(DISTINCT stall_id, bill_no) AS distinctNos FROM stall_orders
+        WHERE order_id IN (?) AND status = 'new'`,
+      [results.map((r) => r.orderId)],
+    );
+    expect(Number(bills?.n)).toBe(200);
+    expect(Number(bills?.distinctNos)).toBe(200);
   });
 
   it('bill numbers run in order per stall', async () => {

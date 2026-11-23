@@ -51,7 +51,24 @@ export async function withTx<T>(fn: (conn: PoolConnection) => Promise<T>): Promi
   }
 }
 
-export const isDuplicateKey = (err: unknown) => (err as { code?: string })?.code === 'ER_DUP_ENTRY';
+const isDeadlock = (err: unknown) => (err as { code?: string })?.code === 'ER_LOCK_DEADLOCK';
+
+/**
+ * Like withTx, but runs the whole transaction again when MySQL cancels it as a deadlock victim (up to `attempts`
+ * times). The rollback already undid everything, so a retry is safe as long as `fn` only touches the database.
+ */
+export async function withTxRetry<T>(fn: (conn: PoolConnection) => Promise<T>, attempts = 4): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await withTx(fn);
+    } catch (err) {
+      if (!isDeadlock(err) || attempt >= attempts) throw err;
+      await new Promise((r) => setTimeout(r, 10 + Math.random() * 40 * attempt));
+    }
+  }
+}
+
+export const isDuplicateKey =(err: unknown) => (err as { code?: string })?.code === 'ER_DUP_ENTRY';
 
 /** Today's date in India (bill numbers and the daily menu restart every IST day). */
 export const IST_TODAY = "DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+05:30'))";
