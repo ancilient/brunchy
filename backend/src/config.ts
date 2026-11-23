@@ -64,6 +64,10 @@ const schema = z.object({
   IGNORE_CANTEEN_HOURS: bool(false),
   JOBS_ENABLED: bool(true),
   RATE_LIMIT_ENABLED: bool(true),
+  // Google sign-ins per 10 minutes. Per internet address it is high on purpose: a whole campus on one Wi-Fi network
+  // shares one public address. Per Google account it stays tight, which is what stops abuse.
+  GOOGLE_SIGNINS_PER_IP: z.coerce.number().int().positive().default(600),
+  GOOGLE_SIGNINS_PER_ACCOUNT: z.coerce.number().int().positive().default(10),
 });
 
 const parsed = schema.safeParse(process.env);

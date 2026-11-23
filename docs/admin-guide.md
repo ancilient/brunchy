@@ -89,6 +89,8 @@ docker compose -f docker-compose.prod.yml up -d api
 | `PLATFORM_FEE_PERCENT` | Platform fee, % of the food total | `3` |
 | `CONVENIENCE_FEE_PERCENT` | Convenience fee, % of the food total | `3` |
 | `FREE_ORDERS_PER_STUDENT` | A student's first N paid orders have no fees (0 = off) | `2` |
+| `GOOGLE_SIGNINS_PER_IP` | Google sign-ins allowed per internet address per 10 minutes (keep high: a campus shares one address) | `600` |
+| `GOOGLE_SIGNINS_PER_ACCOUNT` | Sign-ins allowed per Google account per 10 minutes | `10` |
 
 Empty contact settings hide their button. The apps read these at start, so no new APK is needed.
 
