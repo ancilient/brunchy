@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import type { PoolConnection } from 'mysql2/promise';
-import { IST_TODAY, exec, isDuplicateKey, one, rows, withTx } from '../db/pool.js';
+import { IST_TODAY, exec, isDuplicateKey, one, rows, withTxRetry } from '../db/pool.js';
 import { AppError } from '../errors.js';
 import { logger } from '../logger.js';
 import { gateway, type PaymentEvent } from '../payments/gateway.js';
@@ -43,7 +43,8 @@ async function issueBills(conn: PoolConnection, orderId: number) {
   const bills = await rows<{ stall_order_id: number; stall_id: number; bill_prefix: string }>(
     conn,
     `SELECT so.stall_order_id, so.stall_id, s.bill_prefix FROM stall_orders so JOIN stalls s ON s.stall_id = so.stall_id
-      WHERE so.order_id = ? AND so.status IN ('awaiting_payment','expired') FOR UPDATE`,
+      WHERE so.order_id = ? AND so.status IN ('awaiting_payment','expired')
+      ORDER BY so.stall_id FOR UPDATE OF so`, // lock only the bills (not the stalls), always in stall order
     [orderId],
   );
   for (const bill of bills) {
@@ -99,7 +100,8 @@ type Outcome =
   | { kind: 'refund'; orderId: number; reason: string };
 
 async function applyEvent(ev: PaymentEvent): Promise<Outcome> {
-  return withTx(async (conn) => {
+  // Two payments landing together can deadlock on bill counters; MySQL cancels one and we simply run it again.
+  return withTxRetry(async (conn) => {
     const order = await one(conn, 'SELECT * FROM orders WHERE gateway_order_ref = ? FOR UPDATE', [ev.gatewayOrderRef]);
     if (!order) return { kind: 'ignored', reason: 'unknown gateway order' };
     const orderId = order.order_id as number;
