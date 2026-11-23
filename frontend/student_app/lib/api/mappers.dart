@@ -39,6 +39,8 @@ Product productFromApi(Map<String, dynamic> j, int canteenId) => Product(
       approvalStatus: 'published', // the menu endpoint only returns published items
       isActive: true,
       imageUrl: j['imageUrl'] as String?,
+      description: ((j['description'] as String?) ?? '').trim(),
+      isVeg: j['isVeg'] as bool?,
     );
 
 /// Server status -> the status names the screens use.

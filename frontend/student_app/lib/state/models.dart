@@ -55,7 +55,7 @@ class Stall {
 }
 
 class Product {
-  Product({required this.id, required this.stallId, required this.canteenId, required this.name, required this.category, required this.price, required this.stock, required this.approvalStatus, required this.isActive, this.imageUrl});
+  Product({required this.id, required this.stallId, required this.canteenId, required this.name, required this.category, required this.price, required this.stock, required this.approvalStatus, required this.isActive, this.imageUrl, this.description = '', this.isVeg});
   final int id;
   final int stallId;
   final int canteenId;
@@ -67,6 +67,8 @@ class Product {
   final bool isActive;
   /// Food photo (https URL) when one is set on the server; otherwise the app shows an emoji.
   final String? imageUrl;
+  final String description; // short line under the name on the menu ('' when the server has none)
+  final bool? isVeg; // veg / non-veg mark on the menu; null when unknown
 
   factory Product.fromJson(Map<String, dynamic> j) => Product(
         id: j['product_id'] as int,

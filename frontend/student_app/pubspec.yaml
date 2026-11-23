@@ -33,6 +33,7 @@ flutter:
     - assets/splash/brunchy_splash.json
     - assets/payment/
     - assets/brand/logo.png
+    - assets/stalls/
 
 # Yellow burger app icon (the real full-bleed square logo, app icon/original). Run: dart run flutter_launcher_icons
 # The adaptive background is the icon's own yellow, so the inset foreground blends into it seamlessly.
@@ -42,5 +43,5 @@ flutter_launcher_icons:
   image_path: assets/app-icon.png
   adaptive_icon_background: '#FDDC1F'
   adaptive_icon_foreground: assets/app-icon.png
-  adaptive_icon_foreground_inset: 21 # keeps "Brunchy" clear of the edge on round launchers
+  adaptive_icon_foreground_inset: 17 # slightly larger logo; still keeps "Brunchy" clear of the edge on round launchers
   min_sdk_android: 21
