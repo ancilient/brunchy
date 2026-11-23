@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class C {
-  static const cream = Color(0xFFFAF2E4); // bg-[#FAF2E4]
+  static const cream = Color(0xFFFAF2E4); // bg-[#FAF2E4] — small warm fills (tiles, chips)
+  static const page = Colors.white; // background of every page, the header and the splash
   static const brand = Color(0xFFE63E11); // #E63E11
   static const brandLight = Color(0xFFFF6E40); // #FF6E40
   static const indigoBrand = Color(0xFF3A3D9E); // #3A3D9E
@@ -119,6 +120,37 @@ Widget pill(String text, {required Color bg, required Color fg, double size = 10
     );
 
 Widget dot(Color c, [double s = 8]) => Container(width: s, height: s, decoration: BoxDecoration(color: c, shape: BoxShape.circle));
+
+/// The emoji a dish is drawn with (the app bundles no food photos). Used on the menu and in the cart.
+String foodEmoji(String name) {
+  final n = name.toLowerCase();
+  bool has(List<String> words) => words.any(n.contains);
+  if (has(['burger'])) return '🍔';
+  if (has(['fries'])) return '🍟';
+  if (has(['samosa'])) return '🥟';
+  if (has(['vada', 'bonda', 'bajji'])) return '🧆';
+  if (has(['mango'])) return '🥭';
+  if (has(['lime', 'lemon'])) return '🍋';
+  if (has(['shake', 'smoothie', 'cold coffee', 'milk'])) return '🥤';
+  if (has(['juice', 'soda', 'drink'])) return '🍹';
+  if (has(['coffee', 'tea', 'chai'])) return '☕';
+  if (has(['parotta', 'paratha', 'chapati', 'roti'])) return '🫓';
+  if (has(['dosa', 'idli', 'uttapam'])) return '🥞';
+  if (has(['biryani', 'rice', 'meals', 'thali', 'curry', 'kurma'])) return '🍛';
+  if (has(['chicken', 'grill', 'kebab', 'tikka'])) return '🍗';
+  if (has(['noodle'])) return '🍜';
+  if (has(['puff', 'croissant', 'bun'])) return '🥐';
+  if (has(['cake', 'donut', 'sweet'])) return '🍩';
+  if (has(['soup'])) return '🍲';
+  return '🥪';
+}
+
+/// Initials for the avatar ("Demo Student" -> "DS").
+String initialsOf(String name) {
+  final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  return (parts.first[0] + (parts.length > 1 ? parts.last[0] : '')).toUpperCase();
+}
 
 /// The orange square logo tile with crossed utensils.
 /// The Brunchy logo (yellow burger disc, assets/brand/logo.png) with a soft shadow.

@@ -4,13 +4,131 @@ import 'package:flutter/material.dart';
 import '../state/app_scope.dart';
 import '../state/app_state.dart';
 import '../state/models.dart';
+import '../ui/ad_slot.dart';
 import '../ui/icons.dart';
 import '../ui/theme.dart';
+
+/// The three pickup times as a wallet-style card stack: the other two show their title strip on top, the chosen
+/// card sits in front, fully open. Tapping a strip slides that card to the front.
+class _BreakSlotStack extends StatelessWidget {
+  const _BreakSlotStack({required this.selected, required this.onSelect});
+  final String selected;
+  final ValueChanged<String> onSelect;
+
+  static const _strip = 52.0; // visible part of a card behind
+  static const _full = 116.0; // height of every card
+  static const _slots = [
+    // id, title, line, icon, gradient
+    ('now', 'Now', 'Cook immediately', 'Flame', [C.brandLight, C.brand]),
+    ('15_min_break', '15-min Break', 'Ready for short break', 'Clock', [C.amber500, C.amber700]),
+    ('1_hour_break', '1-Hour Break', 'Ready for lunch time', 'UtensilsCrossed', [C.slate700, C.slate900]),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final front = _slots.indexWhere((x) => x.$1 == selected);
+    // Back cards first (painted first), the chosen card last so it sits in front.
+    final order = [for (var i = 0; i < _slots.length; i++) if (i != front) i, if (front >= 0) front];
+    return SizedBox(
+      height: _strip * (_slots.length - 1) + _full,
+      child: Stack(children: [
+        for (var pos = 0; pos < order.length; pos++)
+          AnimatedPositioned(
+            key: ValueKey(_slots[order[pos]].$1),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+            top: pos * _strip,
+            // cards further back are a little narrower, which reads as depth
+            left: (order.length - 1 - pos) * 7.0,
+            right: (order.length - 1 - pos) * 7.0,
+            height: _full,
+            child: _card(_slots[order[pos]], order[pos] == front),
+          ),
+      ]),
+    );
+  }
+
+  Widget _card((String, String, String, String, List<Color>) slot, bool isFront) {
+    final (id, title, line, icon, colors) = slot;
+    return Tap(
+      scale: isFront ? 1 : 0.98,
+      onTap: () => onSelect(id),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.fromLTRB(16, 13, 14, 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
+          border: Border.all(color: C.a(Colors.white, 0.14)),
+          boxShadow: [BoxShadow(color: C.a(Colors.black, isFront ? 0.18 : 0.12), blurRadius: 18, offset: const Offset(0, -4), spreadRadius: -6)],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(clipBehavior: Clip.none, children: [
+          // large faint icon in the corner of the front card
+          Positioned(right: -6, bottom: -18, child: Opacity(opacity: isFront ? 0.14 : 0, child: LIcon(icon, size: 84, color: Colors.white, strokeWidth: 1.6))),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(color: C.a(Colors.white, 0.2), borderRadius: BorderRadius.circular(9)),
+                alignment: Alignment.center,
+                child: LIcon(icon, size: 15, color: Colors.white, strokeWidth: 2.3),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: txt(title, 14, w: w7, color: Colors.white, font: F.display)),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: isFront
+                    ? Container(
+                        key: const ValueKey('on'),
+                        width: 22, height: 22,
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        alignment: Alignment.center,
+                        child: LIcon('Check', size: 13, color: colors.last, strokeWidth: 3),
+                      )
+                    : KeyedSubtree(key: const ValueKey('off'), child: txt(line, 10, w: w5, color: C.a(Colors.white, 0.8))),
+              ),
+            ]),
+            const Spacer(),
+            AnimatedOpacity(
+              opacity: isFront ? 1 : 0,
+              duration: const Duration(milliseconds: 250),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    txt('PICKUP', 9, w: w7, color: C.a(Colors.white, 0.65), spacing: 1.4),
+                    const SizedBox(height: 2),
+                    txt(line, 15, w: w7, color: Colors.white),
+                  ]),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: C.a(Colors.white, 0.18), borderRadius: BorderRadius.circular(99)),
+                  child: txt('SELECTED', 9, w: w8, color: Colors.white, spacing: 0.8),
+                ),
+              ]),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key, required this.onBackToMenu, required this.onProceedToPay});
   final VoidCallback onBackToMenu;
   final VoidCallback onProceedToPay;
+
+  /// White cards with no amber outline — depth comes from a soft shadow instead.
+  BoxDecoration get _card => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: C.a(Colors.black, 0.08), blurRadius: 14, offset: const Offset(0, 4)),
+          BoxShadow(color: C.a(C.orange500, 0.05), blurRadius: 6, offset: const Offset(0, 2)),
+        ],
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -44,12 +162,6 @@ class CartScreen extends StatelessWidget {
       }
     }
 
-    const slots = [
-      ['now', 'Now', 'Cook immediately'],
-      ['15_min_break', '15-min Break', 'Ready for short break'],
-      ['1_hour_break', '1-Hour Break', 'Ready for lunch time'],
-    ];
-
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
       child: Center(
@@ -60,7 +172,6 @@ class CartScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.only(bottom: 12),
               margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: C.a(C.amber200, 0.6)))),
               child: Row(children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -79,7 +190,7 @@ class CartScreen extends StatelessWidget {
             if (s.cart.isEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 80),
-                decoration: card(border: C.a(C.amber200, 0.6)),
+                decoration: _card,
                 child: Column(children: [
                   Container(width: 64, height: 64, decoration: const BoxDecoration(color: C.cream, shape: BoxShape.circle),
                       child: const Center(child: LIcon('Store', size: 32, color: C.brand))),
@@ -92,45 +203,26 @@ class CartScreen extends StatelessWidget {
                 ]),
               )
             else ...[
-              // Pre-order pickup time
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: card(),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [const LIcon('Clock', size: 16, color: C.brand), const SizedBox(width: 8), txt('Pre-order for a break:', 12, w: w7)]),
-                  const SizedBox(height: 8),
-                  Row(children: [
-                    for (var i = 0; i < slots.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 8),
-                      Expanded(
-                        child: Tap(
-                          onTap: () => s.setPickupSlot(slots[i][0]),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-                            decoration: BoxDecoration(
-                              color: s.pickupSlot == slots[i][0] ? C.orange50 : C.slate50,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: s.pickupSlot == slots[i][0] ? C.brand : C.slate200),
-                            ),
-                            child: Column(children: [
-                              txt(slots[i][1], 12, w: s.pickupSlot == slots[i][0] ? w7 : w4, color: s.pickupSlot == slots[i][0] ? C.brand : C.slate700, align: TextAlign.center),
-                              const SizedBox(height: 2),
-                              txt(slots[i][2], 9, color: C.slate400, align: TextAlign.center),
-                            ]),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ]),
+              // Pre-order pickup time: a stack of cards, the chosen one in front
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 10),
+                child: Row(children: [
+                  const LIcon('Clock', size: 15, color: C.brand, strokeWidth: 2.4),
+                  const SizedBox(width: 6),
+                  Expanded(child: txt('Pre-order for a break', 13, w: w7, font: F.display)),
+                  txt('Tap a card', 10, w: w5, color: C.slate400),
                 ]),
               ),
-              const SizedBox(height: 16),
+              _BreakSlotStack(selected: s.pickupSlot, onSelect: s.setPickupSlot),
+              const SizedBox(height: 20),
+              const AdShowcase(),
+              const SizedBox(height: 20),
               _itemsCard(s, groups),
               const SizedBox(height: 16),
               // Bill breakdown
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: card(),
+                decoration: _card,
                 child: Column(children: [
                   _row(txt('Item Total', 12, color: C.slate600), txt('₹${fmtNum(subtotal)}', 12, w: w5, font: F.mono)),
                   const SizedBox(height: 8),
@@ -189,7 +281,7 @@ class CartScreen extends StatelessWidget {
     final rows = [for (final e in groups.entries) for (final l in e.value) (s.stallById(e.key)!, l)];
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-      decoration: card(),
+      decoration: _card,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(child: txt('Items', 13, w: w7, font: F.display)),
@@ -207,6 +299,17 @@ class CartScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(border: divider ? const Border(bottom: BorderSide(color: C.slate100)) : null),
       child: Row(children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [C.cream, C.amber50]),
+          ),
+          alignment: Alignment.center,
+          child: Text(foodEmoji(p.name), style: const TextStyle(fontSize: 20)),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             txt(p.name, 12, w: w6, maxLines: 1),
@@ -221,7 +324,7 @@ class CartScreen extends StatelessWidget {
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: C.cream, borderRadius: BorderRadius.circular(99), border: Border.all(color: C.amber200)),
+          decoration: BoxDecoration(color: C.cream, borderRadius: BorderRadius.circular(99)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             _round(const LIcon('Minus', size: 12, color: C.slate700), Colors.white, () => s.updateCartQuantity(p.id, -1)),
             SizedBox(width: 26, child: Center(child: RollingNumber(l.quantity, style: ts(12, w: w7, font: F.mono)))),

@@ -39,7 +39,7 @@ class BrunchyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: C.cream,
+        scaffoldBackgroundColor: C.page,
         colorScheme: ColorScheme.fromSeed(seedColor: C.brand, primary: C.brand, surface: Colors.white),
         textSelectionTheme: const TextSelectionThemeData(cursorColor: C.brand),
       ),
@@ -183,7 +183,11 @@ class _StudentAppShellState extends State<StudentAppShell> {
     } else {
       switch (_tab) {
         case AppTab.home:
-          body = StudentHome(onOpenCanteenPicker: () => setState(() => _pickerOpen = true));
+          body = StudentHome(
+            onOpenCanteenPicker: () => setState(() => _pickerOpen = true),
+            onOpenCart: () => setState(() => _tab = AppTab.cart),
+            onOpenOrders: () => setState(() => _tab = AppTab.orders),
+          );
         case AppTab.cart:
           body = CartScreen(onBackToMenu: () => setState(() => _tab = AppTab.home), onProceedToPay: () => setState(() => _payOpen = true));
         case AppTab.orders:
@@ -207,11 +211,15 @@ class _StudentAppShellState extends State<StudentAppShell> {
         if (!_handleBack()) SystemNavigator.pop();
       },
       child: Scaffold(
-        backgroundColor: C.cream,
+        backgroundColor: C.page,
         resizeToAvoidBottomInset: true,
         body: Stack(children: [
           Column(children: [
-            Header(onReplaySplash: () => setState(() => _replaySplash = true)),
+            Header(
+              onReplaySplash: () => setState(() => _replaySplash = true),
+              initials: inMain ? initialsOf(s.currentUser.name) : null,
+              onOpenProfile: () => setState(() => _tab = AppTab.profile),
+            ),
             Expanded(child: _PageTransition(pageKey: _pageKey(s), order: _pageOrder(s), child: body)),
           ]),
           if (inMain && _tab == AppTab.home)
@@ -262,7 +270,6 @@ class _StudentAppShellState extends State<StudentAppShell> {
     final cartCount = s.cartItemCount;
     final activeCount = s.getStudentBills().where((b) => const ['waiting_for_acceptance', 'accepted', 'ready'].contains(b.status)).length;
     const fade = Duration(milliseconds: 280);
-    const pop = Duration(milliseconds: 420);
     Widget item(AppTab t, String icon, String label, {int badge = 0, Color badgeColor = C.brand, double badgeRight = 24}) {
       final active = _tab == t;
       return Expanded(
@@ -277,16 +284,8 @@ class _StudentAppShellState extends State<StudentAppShell> {
                 SizedBox(
                   width: 60,
                   height: 32,
-                  child: Stack(alignment: Alignment.center, children: [
-                    AnimatedContainer(
-                      duration: pop,
-                      curve: Curves.easeOutBack,
-                      width: active ? 60 : 24,
-                      height: 32,
-                      decoration: BoxDecoration(color: C.a(C.orange100, active ? 1 : 0), borderRadius: BorderRadius.circular(16)),
-                    ),
-                    _DockIcon(icon: icon, active: active),
-                  ]),
+                  // No pill behind the active tab: the icon's colour and its little action mark it.
+                  child: Center(child: _DockIcon(icon: icon, active: active)),
                 ),
                 const SizedBox(height: 3),
                 TweenAnimationBuilder<Color?>(
