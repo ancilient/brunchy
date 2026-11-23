@@ -27,7 +27,7 @@ authRouter.get('/app-config', (_req, res) => {
 });
 
 /** Sign in with Google: the app sends the ID token it got from Google Sign-In. */
-authRouter.post('/auth/google', rateLimit('google', 20, 600, byIp), async (req, res) => {
+authRouter.post('/auth/google', rateLimit('google', config.GOOGLE_SIGNINS_PER_IP, 600, byIp), async (req, res) => {
   const body = z.object({ idToken: z.string().min(20), app }).parse(req.body);
   res.json(await auth.signInWithGoogle(body.idToken, body.app));
 });

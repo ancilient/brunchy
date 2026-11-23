@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { exec, isDuplicateKey, one, pool, rows } from '../db/pool.js';
 import { AppError, badRequest, forbidden, notFound, unauthorized } from '../errors.js';
 import { type AuthUser, type Role, signAccessToken } from '../middleware/auth.js';
+import { hitRateLimit } from '../middleware/rateLimit.js';
 import { idStr } from '../util.js';
 import { audit } from './audit.js';
 
@@ -117,6 +118,8 @@ export function setGoogleVerifierForTests(fn: typeof verifyGoogleToken) {
  */
 export async function signInWithGoogle(idToken: string, app: AppKind) {
   const g = await verifyGoogleToken(idToken);
+  // Counted per Google account once Google has confirmed who it is (the per-address limit is set high for campuses).
+  await hitRateLimit('google-account', config.GOOGLE_SIGNINS_PER_ACCOUNT, 600, g.sub);
   if (!g.emailVerified) throw forbidden('EMAIL_NOT_VERIFIED', 'Verify your Google account email first.');
 
   let user =

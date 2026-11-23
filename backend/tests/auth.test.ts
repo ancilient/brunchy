@@ -1,4 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { config } from '../src/config.js';
+import { redis } from '../src/redis.js';
 import { exec, one, pool } from '../src/db/pool.js';
 import { type GoogleIdentity, setGoogleVerifierForTests } from '../src/services/auth.js';
 import { api, closeAll, resetDb, startServer } from './helpers.js';
@@ -84,6 +86,37 @@ describe('Sign in with Google', () => {
   it('rejects a token Google does not accept', async () => {
     const r = await google('token-forged', 'student');
     expect(r.status).toBeGreaterThanOrEqual(400);
+  });
+
+  describe('sign-in limits (rate limiting switched on)', () => {
+    beforeEach(async () => {
+      config.RATE_LIMIT_ENABLED = true;
+      await redis.flushdb();
+      // Campus students: 'token-campus-<n>' is a different Google account for every n.
+      setGoogleVerifierForTests(async (idToken) => {
+        const n = idToken.replace(/^x+token-campus-/, '');
+        return { sub: `g-campus-${n}`, email: `campus${n}@gmail.com`, emailVerified: true, name: `Campus ${n}` };
+      });
+    });
+    afterEach(() => {
+      config.RATE_LIMIT_ENABLED = false;
+    });
+
+    it('30 students on the same campus Wi-Fi (one internet address) can all sign in', async () => {
+      for (let n = 1; n <= 30; n++) {
+        const r = await google(`token-campus-${n}`, 'student');
+        expect(r.status, `student ${n}`).toBe(200);
+      }
+    });
+
+    it('one Google account signing in over and over is refused after 10 in 10 minutes', async () => {
+      for (let i = 1; i <= config.GOOGLE_SIGNINS_PER_ACCOUNT; i++) expect((await google('token-campus-77', 'student')).status).toBe(200);
+      const blocked = await google('token-campus-77', 'student');
+      expect(blocked.status).toBe(429);
+      expect(blocked.body.error.code).toBe('TOO_MANY_REQUESTS');
+      // A different student on the same address is not affected.
+      expect((await google('token-campus-78', 'student')).status).toBe(200);
+    });
   });
 });
 
