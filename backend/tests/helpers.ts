@@ -87,6 +87,7 @@ export function api(baseUrl: string) {
     get: (path: string, token?: string) => call('GET', path, undefined, token),
     post: (path: string, body: unknown, token?: string, headers?: Record<string, string>) => call('POST', path, body, token, headers),
     patch: (path: string, body: unknown, token?: string) => call('PATCH', path, body, token),
+    delete: (path: string, token?: string) => call('DELETE', path, undefined, token),
   };
 }
 

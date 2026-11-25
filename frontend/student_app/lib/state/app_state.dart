@@ -352,6 +352,18 @@ class AppState extends ChangeNotifier {
     _forgetSession();
   }
 
+  /// Deletes the student's account on the server, then forgets the session on this phone.
+  /// Returns an error message (e.g. an order still waiting to be collected), or null when done.
+  Future<String?> deleteAccount() async {
+    try {
+      await api.delete('/me');
+    } on ApiException catch (e) {
+      return e.message;
+    }
+    _forgetSession();
+    return null;
+  }
+
   void _forgetSession() {
     unawaited(_google.signOut());
     _realtime.disconnect();

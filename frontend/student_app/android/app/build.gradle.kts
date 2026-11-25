@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// The Play Store upload key. android/key.properties is never committed (see key.properties.example).
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
 android {
@@ -29,11 +38,25 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+            storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+            storePassword = keystoreProperties.getProperty("storePassword")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // The Play Store App Bundle (`flutter build appbundle`) must be signed with the private upload key: without
+            // key.properties it stops with a clear message. A release APK without the key (CI, team test builds) is
+            // signed with the debug key as before; Play does not accept APKs for new apps anyway.
+            val buildingBundle = gradle.startParameter.taskNames.any { it.lowercase().contains("bundle") }
+            if (buildingBundle && !keystorePropertiesFile.exists()) {
+                throw GradleException("Missing android/key.properties. Copy key.properties.example, point it at the upload key, then build the App Bundle.")
+            }
+            signingConfig = if (keystorePropertiesFile.exists()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
             // Keep rules for the Razorpay SDK (release builds are shrunk with R8).
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

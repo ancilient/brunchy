@@ -215,8 +215,10 @@ class CartScreen extends StatelessWidget {
               ),
               _BreakSlotStack(selected: s.pickupSlot, onSelect: s.setPickupSlot),
               const SizedBox(height: 20),
-              const AdShowcase(),
-              const SizedBox(height: 20),
+              if (kShowAds) ...[
+                const AdShowcase(),
+                const SizedBox(height: 20),
+              ],
               _itemsCard(s, groups),
               const SizedBox(height: 16),
               // Bill breakdown

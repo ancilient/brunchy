@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { config } from '../config.js';
-import { exec, isDuplicateKey, one, pool, rows } from '../db/pool.js';
-import { AppError, badRequest, forbidden, notFound, unauthorized } from '../errors.js';
+import { exec, isDuplicateKey, one, pool, rows, withTx } from '../db/pool.js';
+import { AppError, badRequest, conflict, forbidden, notFound, unauthorized } from '../errors.js';
 import { type AuthUser, type Role, signAccessToken } from '../middleware/auth.js';
 import { hitRateLimit } from '../middleware/rateLimit.js';
 import { idStr } from '../util.js';
@@ -253,6 +253,37 @@ export async function openVendorStallSession(user: AuthUser, stallId: number) {
       canteenName: allowed.canteen_name,
     },
   };
+}
+
+/**
+ * A student deletes their own account (Google Play requires this in the app). The account is anonymised and
+ * switched off, and every session is signed out. Past bills stay for accounting and tax, with no personal details
+ * left on the account (privacy policy). Refused while a bill is still being prepared or waiting to be collected.
+ */
+export async function deleteStudentAccount(userId: number) {
+  return withTx(async (conn) => {
+    const user = await one<UserRow>(conn, 'SELECT * FROM users WHERE user_id = ? FOR UPDATE', [userId]);
+    if (!user || !user.is_active) throw notFound('USER_NOT_FOUND', 'Account not found');
+    if (user.role !== 'student') throw forbidden('NOT_A_STUDENT', 'Only student accounts can be deleted from the app.');
+    const open = await one<{ n: number }>(
+      conn,
+      `SELECT COUNT(*) AS n FROM stall_orders so JOIN orders o ON o.order_id = so.order_id
+        WHERE o.user_id = ? AND so.status IN ('new','accepted','preparing','ready')`,
+      [userId],
+    );
+    if (Number(open?.n) > 0) {
+      throw conflict('ACTIVE_ORDERS', 'You have an order that is not collected yet. Collect or cancel it, then delete your account.');
+    }
+    await exec(
+      conn,
+      `UPDATE users SET name = 'Deleted user', email = NULL, phone = NULL, register_no = NULL, google_sub = NULL,
+              is_active = FALSE WHERE user_id = ?`,
+      [userId],
+    );
+    await exec(conn, 'UPDATE refresh_tokens SET revoked_at = UTC_TIMESTAMP() WHERE user_id = ? AND revoked_at IS NULL', [userId]);
+    await audit(conn, { id: userId, role: 'student' }, 'account_deleted', 'users', userId);
+    return { deleted: true };
+  });
 }
 
 export async function logout(refreshToken: string) {

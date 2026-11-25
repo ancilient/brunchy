@@ -2,8 +2,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <!-- No photo/storage permissions: "Choose from Gallery" uses Android's photo picker, which needs none
+         (Google Play only allows READ_MEDIA_IMAGES for apps whose core purpose is photos). -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application

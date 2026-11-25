@@ -1,5 +1,6 @@
-# Copy this file to android/key.properties. Do not commit the real file.
+# Copy this file to android/key.properties and fill it in. Never commit the real file or the .jks key.
+# storeFile can be an absolute path, e.g. C:/brunchy-keys/brunchy-upload.jks (keep the key outside the repository).
 storePassword=CHANGE_ME
 keyPassword=CHANGE_ME
-keyAlias=brunchy_vendor_upload
-storeFile=../upload-keystore.jks
+keyAlias=brunchy_upload
+storeFile=C:/brunchy-keys/brunchy-upload.jks
