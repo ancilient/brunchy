@@ -40,14 +40,14 @@ android {
 
     buildTypes {
         release {
-            // Only release builds (Play Store) need the private upload key. Debug builds (`flutter run`) work without it.
-            def buildingRelease = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
-            if (buildingRelease && !keystorePropertiesFile.exists()) {
-                throw new GradleException('Missing android/key.properties. Copy key.properties.example, provide the private upload key, then build the Play Store App Bundle.')
+            // The Play Store App Bundle (`flutter build appbundle`) must be signed with the private upload key: without
+            // key.properties it stops with a clear message. A release APK without the key (team test builds) is signed
+            // with the debug key; Play does not accept APKs for new apps anyway.
+            def buildingBundle = gradle.startParameter.taskNames.any { it.toLowerCase().contains('bundle') }
+            if (buildingBundle && !keystorePropertiesFile.exists()) {
+                throw new GradleException('Missing android/key.properties. Copy key.properties.example, point it at the upload key, then build the App Bundle.')
             }
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.release
-            }
+            signingConfig = keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

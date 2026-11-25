@@ -49,15 +49,14 @@ android {
 
     buildTypes {
         release {
-            // Play Store builds are signed with the private upload key. Without key.properties a release build stops
-            // with a clear message instead of quietly using the debug key, which Play rejects.
-            val buildingRelease = gradle.startParameter.taskNames.any { it.lowercase().contains("release") }
-            if (buildingRelease && !keystorePropertiesFile.exists()) {
+            // The Play Store App Bundle (`flutter build appbundle`) must be signed with the private upload key: without
+            // key.properties it stops with a clear message. A release APK without the key (CI, team test builds) is
+            // signed with the debug key as before; Play does not accept APKs for new apps anyway.
+            val buildingBundle = gradle.startParameter.taskNames.any { it.lowercase().contains("bundle") }
+            if (buildingBundle && !keystorePropertiesFile.exists()) {
                 throw GradleException("Missing android/key.properties. Copy key.properties.example, point it at the upload key, then build the App Bundle.")
             }
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = if (keystorePropertiesFile.exists()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
             // Keep rules for the Razorpay SDK (release builds are shrunk with R8).
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
