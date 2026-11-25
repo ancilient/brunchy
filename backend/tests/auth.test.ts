@@ -3,7 +3,7 @@ import { config } from '../src/config.js';
 import { redis } from '../src/redis.js';
 import { exec, one, pool } from '../src/db/pool.js';
 import { type GoogleIdentity, setGoogleVerifierForTests } from '../src/services/auth.js';
-import { api, closeAll, resetDb, startServer } from './helpers.js';
+import { api, closeAll, placePaidOrder, resetDb, startServer, tokenFor } from './helpers.js';
 
 let server: Awaited<ReturnType<typeof startServer>>;
 let client: ReturnType<typeof api>;
@@ -117,6 +117,48 @@ describe('Sign in with Google', () => {
       // A different student on the same address is not affected.
       expect((await google('token-campus-78', 'student')).status).toBe(200);
     });
+  });
+});
+
+describe('delete my account (Google Play requirement)', () => {
+  beforeEach(() => {
+    setGoogleVerifierForTests(async (idToken) => {
+      const n = idToken.replace(/^x+token-leaver-/, '');
+      return { sub: `g-leaver-${n}`, email: `leaver${n}@gmail.com`, emailVerified: true, name: `Leaver ${n}` };
+    });
+  });
+
+  it('anonymises the account, signs it out everywhere, and the same Google account later starts fresh', async () => {
+    const login = await google('token-leaver-1', 'student');
+    expect(login.status).toBe(200);
+    const id = Number(login.body.user.id);
+
+    const del = await client.delete('/me', login.body.accessToken);
+    expect(del.status).toBe(200);
+    expect(del.body).toEqual({ deleted: true });
+
+    const row = await one(pool, 'SELECT name, email, google_sub, is_active FROM users WHERE user_id = ?', [id]);
+    expect(row).toMatchObject({ name: 'Deleted user', email: null, google_sub: null, is_active: 0 });
+    expect((await client.post('/auth/refresh', { refreshToken: login.body.refreshToken })).status).toBe(401);
+    const logged = await one<{ n: number }>(pool, "SELECT COUNT(*) AS n FROM audit_log WHERE action = 'account_deleted' AND record_id = ?", [id]);
+    expect(Number(logged?.n)).toBe(1);
+
+    const again = await google('token-leaver-1', 'student');
+    expect(again.status).toBe(200);
+    expect(Number(again.body.user.id)).not.toBe(id);
+  });
+
+  it('is refused while an order is waiting to be collected', async () => {
+    const login = await google('token-leaver-2', 'student');
+    await placePaidOrder(client, login.body.accessToken, [{ productId: '102', qty: 1 }]);
+    const del = await client.delete('/me', login.body.accessToken);
+    expect(del.status).toBe(409);
+    expect(del.body.error.code).toBe('ACTIVE_ORDERS');
+  });
+
+  it('vendor accounts cannot be deleted from the app', async () => {
+    const del = await client.delete('/me', tokenFor({ id: 2, role: 'vendor', stallId: 1, canteenId: 1 }));
+    expect(del.status).toBe(403);
   });
 });
 

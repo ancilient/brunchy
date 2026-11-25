@@ -538,6 +538,27 @@ class ProfilePage extends StatelessWidget {
                 linkRow('Shield', C.purple500, 'Privacy Policy (DPDP Act 2023 Compliant)', () => onOpenPolicy('privacy'), divider: false),
               ]),
             ),
+            const SizedBox(height: 20),
+            // Account deletion (Google Play requires it inside the app).
+            Center(
+              child: Tap(
+                onTap: () async {
+                  if (!await _confirmDeleteAccount(context)) return;
+                  final error = await s.deleteAccount();
+                  if (error != null && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const LIcon('Trash2', size: 14, color: C.rose600),
+                    const SizedBox(width: 6),
+                    txt('Delete my account', 12, w: w7, color: C.rose600),
+                  ]),
+                ),
+              ),
+            ),
           ]),
         ),
       ),
@@ -545,8 +566,30 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-/// "Log out?" card that pops in over a blurred backdrop. Returns true when the student confirms.
-Future<bool> _confirmLogout(BuildContext context) async {
+/// "Log out?" card. Returns true when the student confirms.
+Future<bool> _confirmLogout(BuildContext context) => _confirmAction(
+      context,
+      icon: 'LogOut',
+      title: 'Log out of Brunchy?',
+      body: 'Your cart on this phone will be cleared. You can sign back in anytime with your Google account.',
+      cancel: 'Stay',
+      ok: 'Log out',
+    );
+
+/// "Delete your account?" card. Returns true when the student confirms.
+Future<bool> _confirmDeleteAccount(BuildContext context) => _confirmAction(
+      context,
+      icon: 'Trash2',
+      title: 'Delete your account?',
+      body: 'Your name, email and Google sign-in are removed from Brunchy and you are signed out. '
+          'Bills you already paid are kept without your details, for accounting. This cannot be undone.',
+      cancel: 'Keep account',
+      ok: 'Delete',
+    );
+
+/// A confirm card that pops in over a blurred backdrop. Returns true when the student confirms.
+Future<bool> _confirmAction(BuildContext context,
+    {required String icon, required String title, required String body, required String cancel, required String ok}) async {
   final r = await showGeneralDialog<bool>(
     context: context,
     barrierDismissible: true,
@@ -572,13 +615,12 @@ Future<bool> _confirmLogout(BuildContext context) async {
                   width: 64, height: 64,
                   decoration: BoxDecoration(color: C.rose50, shape: BoxShape.circle, border: Border.all(color: C.rose200, width: 2)),
                   alignment: Alignment.center,
-                  child: const LIcon('LogOut', size: 26, color: C.rose600),
+                  child: LIcon(icon, size: 26, color: C.rose600),
                 ),
                 const SizedBox(height: 16),
-                txt('Log out of Brunchy?', 18, w: w7, font: F.display, align: TextAlign.center),
+                txt(title, 18, w: w7, font: F.display, align: TextAlign.center),
                 const SizedBox(height: 8),
-                txt('Your cart on this phone will be cleared. You can log back in anytime with your phone number and an OTP.',
-                    12, color: C.slate500, align: TextAlign.center, height: 1.5),
+                txt(body, 12, color: C.slate500, align: TextAlign.center, height: 1.5),
                 const SizedBox(height: 24),
                 Row(children: [
                   Expanded(
@@ -588,7 +630,7 @@ Future<bool> _confirmLogout(BuildContext context) async {
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         decoration: BoxDecoration(color: C.cream, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.amber200)),
                         alignment: Alignment.center,
-                        child: txt('Stay', 14, w: w7, color: C.slate700),
+                        child: txt(cancel, 14, w: w7, color: C.slate700),
                       ),
                     ),
                   ),
@@ -604,7 +646,7 @@ Future<bool> _confirmLogout(BuildContext context) async {
                           boxShadow: [BoxShadow(color: C.a(C.rose600, 0.3), blurRadius: 12, offset: const Offset(0, 6))],
                         ),
                         alignment: Alignment.center,
-                        child: txt('Log out', 14, w: w7, color: Colors.white),
+                        child: txt(ok, 14, w: w7, color: Colors.white),
                       ),
                     ),
                   ),

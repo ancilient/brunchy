@@ -65,6 +65,10 @@ class AdSlot extends StatelessWidget {
   }
 }
 
+/// Ad spaces stay hidden until a real advertiser exists: empty "Ad space" boxes would make Google Play treat the
+/// app as showing ads. Preview the layout with `--dart-define=SHOW_ADS=true`.
+const bool kShowAds = bool.fromEnvironment('SHOW_ADS');
+
 /// A large rectangle on top and two medium squares under it, under a small "Sponsored" label.
 class AdShowcase extends StatelessWidget {
   const AdShowcase({super.key});

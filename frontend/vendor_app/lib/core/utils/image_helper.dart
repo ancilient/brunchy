@@ -131,23 +131,8 @@ class ImageHelper {
       }
     }
 
-    // On modern Android (API 33+) & iOS, system photo pickers run out-of-process and do not require storage permissions.
-    // However, on older Android devices (API <= 32), check storage permission gracefully.
-    if (Platform.isAndroid) {
-      try {
-        final status = await Permission.photos.status;
-        if (status.isGranted || status.isLimited) return true;
-
-        final storageStatus = await Permission.storage.status;
-        if (storageStatus.isGranted || storageStatus.isLimited) return true;
-
-        // If neither is granted, image_picker will still attempt the system photo picker.
-        return true;
-      } catch (_) {
-        return true;
-      }
-    }
-
+    // Gallery: image_picker opens Android's system photo picker (and the iOS picker), which runs outside the app and
+    // needs no storage or photo permission. The app deliberately declares none (Google Play photo policy).
     return true;
   }
 

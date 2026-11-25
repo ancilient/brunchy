@@ -49,6 +49,11 @@ authRouter.post('/auth/logout', async (req, res) => {
   res.status(204).end();
 });
 
+/** A student deletes their own account (Profile → Delete my account). */
+authRouter.delete('/me', requireAuth, async (req, res) => {
+  res.json(await auth.deleteStudentAccount(currentUser(req).id));
+});
+
 authRouter.get('/me', requireAuth, async (req, res) => {
   const user = await auth.findUserById(currentUser(req).id);
   if (!user) throw notFound('USER_NOT_FOUND', 'Account not found');
