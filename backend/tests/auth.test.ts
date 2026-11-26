@@ -41,7 +41,9 @@ const google = (token: string, app: 'student' | 'vendor') => client.post('/auth/
 describe('Sign in with Google', () => {
   it('tells the apps which sign-in buttons to show', async () => {
     const r = await client.get('/auth/options');
-    expect(r.body).toEqual({ google: true, googleClientId: 'test-web-client-id.apps.googleusercontent.com', devLogin: true });
+    expect(r.body).toMatchObject({ google: true, googleClientId: 'test-web-client-id.apps.googleusercontent.com', devLogin: true });
+    // The admin panel's development buttons (only while DEV_LOGIN is on).
+    expect(r.body.devAccounts.map((a: { key: string }) => a.key)).toEqual(['admin', 'manager']);
   });
 
   it('a new Google account becomes a student (student app only)', async () => {

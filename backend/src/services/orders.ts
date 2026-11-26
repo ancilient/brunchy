@@ -1,5 +1,5 @@
-import { config } from '../config.js';
 import { type Db, rows } from '../db/pool.js';
+import { getSettings } from './settings.js';
 import { iso, orderCode } from '../util.js';
 
 export const OPEN_BILL_STATUSES = ['new', 'accepted', 'preparing', 'ready'] as const;
@@ -152,6 +152,7 @@ export async function loadOrders(db: Db, where: string, params: unknown[], limit
     params,
   );
   if (!orders.length) return [];
+  const settings = await getSettings(db);
   const bills = await loadBills(db, 'so.order_id IN (?)', [orders.map((o) => o.order_id)]);
   return orders.map((o) => ({
     id: String(o.order_id),
@@ -163,10 +164,10 @@ export async function loadOrders(db: Db, where: string, params: unknown[], limit
     subtotal: o.subtotal,
     tax: o.tax,
     convenienceFee: o.convenience_fee,
-    /** Computed platform fee for this order (₹), from PLATFORM_FEE_PERCENT of item subtotal. */
+    /** Computed platform fee for this order (₹), a % of the item subtotal (Fees & offers in the admin panel). */
     additionalFee: o.additional_fee,
-    platformFeePercent: config.PLATFORM_FEE_PERCENT,
-    convenienceFeePercent: config.CONVENIENCE_FEE_PERCENT,
+    platformFeePercent: settings.platformFeePct,
+    convenienceFeePercent: settings.convenienceFeePct,
     /** One of the student's free first orders: no platform or convenience fee. */
     feesWaived: Boolean(o.fees_waived),
     total: o.total,

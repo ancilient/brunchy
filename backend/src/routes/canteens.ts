@@ -7,8 +7,8 @@ import { parseId } from '../util.js';
 
 export const canteensRouter = Router();
 
-canteensRouter.get('/canteens', requireAuth, async (_req, res) => {
-  res.json(await listCanteens());
+canteensRouter.get('/canteens', requireAuth, async (req, res) => {
+  res.json(await listCanteens(currentUser(req).role !== 'student'));
 });
 
 /** Supports If-None-Match, so an unchanged menu costs a 304 with no body. */

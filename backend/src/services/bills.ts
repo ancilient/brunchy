@@ -22,13 +22,13 @@ function vendorStall(user: AuthUser) {
   return user.stallId;
 }
 
-async function successfulPaymentId(conn: PoolConnection, orderId: number) {
+export async function successfulPaymentId(conn: PoolConnection, orderId: number) {
   const p = await one<{ payment_id: number }>(conn, "SELECT payment_id FROM payments WHERE order_id = ? AND payment_status = 'success' ORDER BY payment_id LIMIT 1", [orderId]);
   return p?.payment_id ?? null;
 }
 
 /** Food that will not be made goes back on sale. */
-async function returnStock(conn: PoolConnection, billId: number) {
+export async function returnStock(conn: PoolConnection, billId: number) {
   const items = await rows<{ product_id: number; quantity: number }>(
     conn,
     "SELECT product_id, quantity FROM order_items WHERE stall_order_id = ? AND item_status = 'active' AND quantity > 0 ORDER BY product_id",
@@ -37,7 +37,7 @@ async function returnStock(conn: PoolConnection, billId: number) {
   for (const i of items) await exec(conn, 'UPDATE products SET stock_quantity = stock_quantity + ? WHERE product_id = ?', [i.quantity, i.product_id]);
 }
 
-async function lockBill(conn: PoolConnection, billId: number) {
+export async function lockBill(conn: PoolConnection, billId: number) {
   const bill = await one(
     conn,
     `SELECT so.*, o.user_id FROM stall_orders so JOIN orders o ON o.order_id = so.order_id WHERE so.stall_order_id = ? FOR UPDATE`,
@@ -296,6 +296,36 @@ export async function updateProduct(user: AuthUser, productId: number, input: { 
 }
 
 /**
+ * Emergency stop: every paid bill of the stall not yet accepted is rejected (STALL_EMERGENCY), its food goes back on
+ * sale and a refund of the bill plus both fee shares is requested (the stall's fault). Returns the bill ids.
+ * Used by the vendor app and the admin panel; runs inside the caller's transaction.
+ */
+export async function rejectNewBillsForEmergency(conn: PoolConnection, stallId: number, actorId: number) {
+  const notStarted = await rows<{ stall_order_id: number; order_id: number; total: number; platform_fee: number; convenience_fee: number }>(
+    conn,
+    "SELECT stall_order_id, order_id, total, platform_fee, convenience_fee FROM stall_orders WHERE stall_id = ? AND status = 'new' ORDER BY stall_order_id FOR UPDATE",
+    [stallId],
+  );
+  for (const b of notStarted) {
+    await exec(
+      conn,
+      "UPDATE stall_orders SET status = 'rejected', cancelled_at = UTC_TIMESTAMP(), cancel_reason = 'STALL_EMERGENCY' WHERE stall_order_id = ? AND status = 'new'",
+      [b.stall_order_id],
+    );
+    await returnStock(conn, b.stall_order_id);
+    await insertRefund(conn, {
+      orderId: b.order_id,
+      billId: b.stall_order_id,
+      paymentId: await successfulPaymentId(conn, b.order_id),
+      amount: toRupees(toPaise(b.total) + toPaise(b.platform_fee) + toPaise(b.convenience_fee)),
+      reason: 'STALL_EMERGENCY',
+      requestedBy: actorId,
+    });
+  }
+  return notStarted.map((b) => b.stall_order_id);
+}
+
+/**
  * Pause (auto-resumes), Close for today, Resume, or Emergency stop.
  * Pause and Close: paid orders already on the board continue normally.
  * Emergency stop (gas cut, power failure…): the stall closes and every paid order not yet started is
@@ -319,28 +349,7 @@ export async function setStallStatus(
       await exec(conn, "UPDATE stalls SET status = 'open', paused_until = NULL WHERE stall_id = ?", [stallId]);
     }
     if (input.action === 'emergency') {
-      const notStarted = await rows<{ stall_order_id: number; order_id: number; total: number; platform_fee: number; convenience_fee: number }>(
-        conn,
-        "SELECT stall_order_id, order_id, total, platform_fee, convenience_fee FROM stall_orders WHERE stall_id = ? AND status = 'new' ORDER BY stall_order_id FOR UPDATE",
-        [stallId],
-      );
-      for (const b of notStarted) {
-        await exec(
-          conn,
-          "UPDATE stall_orders SET status = 'rejected', cancelled_at = UTC_TIMESTAMP(), cancel_reason = 'STALL_EMERGENCY' WHERE stall_order_id = ? AND status = 'new'",
-          [b.stall_order_id],
-        );
-        await returnStock(conn, b.stall_order_id);
-        await insertRefund(conn, {
-          orderId: b.order_id,
-          billId: b.stall_order_id,
-          paymentId: await successfulPaymentId(conn, b.order_id),
-          amount: toRupees(toPaise(b.total) + toPaise(b.platform_fee) + toPaise(b.convenience_fee)), // stall's fault: both fee shares too
-          reason: 'STALL_EMERGENCY',
-          requestedBy: user.id,
-        });
-      }
-      refunded = notStarted.map((b) => b.stall_order_id);
+      refunded = await rejectNewBillsForEmergency(conn, stallId, user.id);
       preparing = (
         await rows<{ stall_order_id: number }>(
           conn,

@@ -10,6 +10,8 @@ export interface AuthUser {
   role: Role;
   stallId: number | null;
   canteenId: number | null;
+  /** When the access token was issued (seconds). Set when read from a token. */
+  iat?: number;
 }
 
 declare global {
@@ -35,8 +37,8 @@ export function signAccessToken(user: AuthUser) {
 
 export function verifyAccessToken(token: string): AuthUser {
   try {
-    const c = jwt.verify(token, config.JWT_ACCESS_SECRET, { issuer: 'brunchy' }) as unknown as AccessClaims;
-    return { id: Number(c.sub), role: c.role, stallId: c.stallId ?? null, canteenId: c.canteenId ?? null };
+    const c = jwt.verify(token, config.JWT_ACCESS_SECRET, { issuer: 'brunchy' }) as unknown as AccessClaims & { iat?: number };
+    return { id: Number(c.sub), role: c.role, stallId: c.stallId ?? null, canteenId: c.canteenId ?? null, iat: c.iat };
   } catch {
     throw unauthorized('Your session has expired. Please log in again.');
   }

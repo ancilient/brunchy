@@ -16,6 +16,9 @@ interface CanteenRow {
   last_order_minutes: number;
   latitude: number | null;
   longitude: number | null;
+  location?: string;
+  photo_url?: string | null;
+  min_order?: number;
 }
 
 const serializeCanteen = (c: CanteenRow) => ({
@@ -28,10 +31,15 @@ const serializeCanteen = (c: CanteenRow) => ({
   lastOrderMinutes: c.last_order_minutes,
   latitude: c.latitude,
   longitude: c.longitude,
+  // Set from the admin panel (Canteens). Older app versions ignore them.
+  location: c.location ?? '',
+  photoUrl: c.photo_url ?? null,
+  minOrder: Number(c.min_order ?? 0),
 });
 
-export async function listCanteens() {
-  const list = await rows<CanteenRow>(pool, 'SELECT * FROM canteens WHERE is_active = TRUE ORDER BY canteen_name');
+/** Canteens hidden from the admin panel keep working for their vendors but disappear from the student app. */
+export async function listCanteens(includeHidden = false) {
+  const list = await rows<CanteenRow>(pool, `SELECT * FROM canteens WHERE is_active = TRUE ${includeHidden ? '' : 'AND hidden = FALSE'} ORDER BY canteen_name`);
   return { canteens: list.map(serializeCanteen) };
 }
 
@@ -47,8 +55,9 @@ async function buildMenu(canteenId: number) {
     `SELECT p.* FROM products p
        JOIN stalls s ON s.stall_id = p.stall_id
        JOIN daily_menu dm ON dm.product_id = p.product_id AND dm.menu_date = ${IST_TODAY}
-      WHERE s.canteen_id = ? AND s.is_active = TRUE AND p.is_active = TRUE AND p.approval_status = 'published'
-      ORDER BY p.product_name`,
+      LEFT JOIN categories cat ON cat.category_name = p.category
+      WHERE s.canteen_id = ? AND s.is_active = TRUE AND p.is_active = TRUE AND p.approval_status = 'published' AND p.deleted_at IS NULL
+      ORDER BY COALESCE(cat.sort_order, 100000), p.sort_order, p.product_name`,
     [canteenId],
   );
   return {

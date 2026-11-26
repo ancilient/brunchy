@@ -68,6 +68,18 @@ const schema = z.object({
   // shares one public address. Per Google account it stays tight, which is what stops abuse.
   GOOGLE_SIGNINS_PER_IP: z.coerce.number().int().positive().default(600),
   GOOGLE_SIGNINS_PER_ACCOUNT: z.coerce.number().int().positive().default(10),
+
+  // Admin panel (admin_web). Browser origins allowed to send the panel's refresh cookie (comma separated).
+  ADMIN_ORIGINS: z
+    .string()
+    .default('http://localhost:5173')
+    .transform((v) => v.split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean)),
+  // "lax" when the panel and the API share a site (localhost, or admin.x.in + api.x.in); "none" across sites (needs HTTPS).
+  ADMIN_COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  // Photos uploaded from the panel. In production Caddy serves this folder at https://<API_DOMAIN>/uploads/.
+  UPLOADS_DIR: z.string().default('../deploy/uploads'),
+  // Public address of that folder, e.g. https://api.example.in/uploads (empty = this server's own /uploads).
+  PUBLIC_UPLOADS_URL: z.string().default(''),
 });
 
 const parsed = schema.safeParse(process.env);

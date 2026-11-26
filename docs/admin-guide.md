@@ -1,7 +1,11 @@
 # Changing names, prices, photos, settings and app texts
 
-Until the admin dashboard exists, these are the ways to change what students and vendors see.
-Everything here runs on the server: log in first.
+**The admin panel (`admin_web`) now does all of this from the browser**: canteens and stalls (hours, GST rate),
+vendor accounts, food items (photos, prices, sold out, daily menu), fees and the GST number (Fees & app settings,
+`gstin` via `PATCH /api/v1/admin/settings` until the panel has a field for it). Panel accounts are added under Team &
+access and sign in with Google. A value saved in the panel wins over the same setting in `deploy/.env`.
+
+The commands below still work as a fallback. Everything here runs on the server: log in first.
 
 ```bash
 ssh root@<server-ip>

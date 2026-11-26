@@ -10,6 +10,7 @@ import { feesFor, splitByWeight } from './fees.js';
 import { releaseHolds } from './holds.js';
 import { bustMenuCache } from './menu.js';
 import { loadOrder } from './orders.js';
+import { getSettings } from './settings.js';
 
 export interface CartLine {
   productId: number;
@@ -119,6 +120,12 @@ export async function checkout(userId: number, input: { canteenId: number; items
   const canteen = await one(pool, 'SELECT * FROM canteens WHERE canteen_id = ? AND is_active = TRUE', [input.canteenId]);
   if (!canteen) throw notFound('CANTEEN_NOT_FOUND', 'Canteen not found');
   if (!canteenTakesOrders(canteen as never)) throw conflict('CANTEEN_CLOSED', 'This canteen is not taking orders right now.');
+  // Switches and limits from the admin panel (Fees & app settings, Canteens).
+  const settings = await getSettings();
+  if (settings.maintenanceMode) throw conflict('MAINTENANCE', 'Brunchy is under maintenance. Please try again in a little while.');
+  if (settings.orderingPaused) throw conflict('ORDERING_PAUSED_GLOBAL', 'Ordering is paused right now. Please try again in a little while.');
+  if (canteen.hidden) throw notFound('CANTEEN_NOT_FOUND', 'Canteen not found');
+  const minOrderPaise = toPaise(Math.max(settings.minOrderValue, Number(canteen.min_order ?? 0)));
 
   let orderId: number;
   try {
@@ -161,6 +168,11 @@ export async function checkout(userId: number, input: { canteenId: number; items
         });
       }
 
+      const itemTotalPaise = taken.reduce((s, t) => s + toPaise(t.p.price) * t.take, 0);
+      if (minOrderPaise > 0 && itemTotalPaise < minOrderPaise) {
+        throw conflict('BELOW_MIN_ORDER', `The minimum order here is ₹${toRupees(minOrderPaise)}.`, { minOrder: toRupees(minOrderPaise) });
+      }
+
       // Atomic stock reduction (blueprint query A). The rows are locked, so this cannot oversell.
       for (const t of taken) {
         if (t.take === 0) continue;
@@ -172,7 +184,7 @@ export async function checkout(userId: number, input: { canteenId: number; items
         if (r.affectedRows !== 1) throw new AppError(409, 'STOCK_CHANGED', 'Stock changed while ordering. Please try again.');
       }
 
-      const holdSeconds = Math.round(config.HOLD_MINUTES * 60);
+      const holdSeconds = Math.round(settings.holdMinutes * 60);
       const order = await exec(
         conn,
         `INSERT INTO orders (user_id, canteen_id, idempotency_key, subtotal, tax, convenience_fee, additional_fee, total, payment_expires_at)

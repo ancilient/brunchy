@@ -7,10 +7,29 @@ import { type AuthUser, type Role, signAccessToken } from '../middleware/auth.js
 import { hitRateLimit } from '../middleware/rateLimit.js';
 import { idStr } from '../util.js';
 import { audit } from './audit.js';
+import { getSettings } from './settings.js';
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-export type AppKind = 'student' | 'vendor';
+/** student app, vendor app, or the admin panel (admin_web; admin and manager accounts only). */
+export type AppKind = 'student' | 'vendor' | 'admin';
+
+export interface LoginMeta {
+  device?: string;
+  appVersion?: string;
+}
+
+/** Login history for the admin panel (Users & vendors → Logins). Never stores tokens or codes. */
+export async function recordLogin(userId: number | null, app: AppKind, meta: LoginMeta, success: boolean, failureReason?: string) {
+  await exec(pool, 'INSERT INTO login_history (user_id, app, device, app_version, success, failure_reason) VALUES (?, ?, ?, ?, ?, ?)', [
+    userId,
+    app,
+    (meta.device ?? '').slice(0, 200),
+    (meta.appVersion ?? '').slice(0, 20),
+    success,
+    failureReason ?? null,
+  ]).catch(() => undefined); // history must never block a sign-in
+}
 
 export interface UserRow {
   user_id: number;
@@ -52,6 +71,7 @@ export const loginOptions = () => ({
   google: config.GOOGLE_CLIENT_IDS.length > 0,
   googleClientId: config.GOOGLE_CLIENT_IDS[0] ?? null,
   devLogin: config.DEV_LOGIN,
+  ...(config.DEV_LOGIN ? { devAccounts: DEV_PANEL_ACCOUNTS } : {}),
 });
 
 /** The stall a vendor session is opened for (POST /vendor/session/stall). Without it, users.stall_id is used. */
@@ -62,6 +82,7 @@ export interface StallScope {
 
 async function issueTokens(user: UserRow, scope?: StallScope) {
   const refreshToken = randomBytes(32).toString('hex');
+  await exec(pool, 'UPDATE users SET last_login_at = UTC_TIMESTAMP() WHERE user_id = ?', [user.user_id]);
   await exec(
     pool,
     'INSERT INTO refresh_tokens (token_hash, user_id, stall_id, expires_at) VALUES (?, ?, ?, UTC_TIMESTAMP() + INTERVAL ? DAY)',
@@ -75,6 +96,10 @@ async function issueTokens(user: UserRow, scope?: StallScope) {
 /** A student account can't sign in to the vendor app and the other way round. */
 function checkApp(user: UserRow, app: AppKind) {
   if (!user.is_active) throw new AppError(403, 'ACCOUNT_DISABLED', 'This account is disabled.');
+  if (app === 'admin') {
+    if (user.role !== 'admin' && user.role !== 'manager') throw forbidden('forbidden', 'This account does not have dashboard access.');
+    return;
+  }
   if (app === 'vendor' && user.role !== 'vendor') {
     throw forbidden('NOT_A_VENDOR', 'This Google account is not registered to a stall. Ask the canteen manager to add it.');
   }
@@ -116,7 +141,7 @@ export function setGoogleVerifierForTests(fn: typeof verifyGoogleToken) {
  * The app sends Google's ID token; we verify it, then find the account by Google id, or by email for accounts the admin
  * created in advance (vendors). A new Google account becomes a student, but only from the student app.
  */
-export async function signInWithGoogle(idToken: string, app: AppKind) {
+export async function signInWithGoogle(idToken: string, app: AppKind, meta: LoginMeta = {}) {
   const g = await verifyGoogleToken(idToken);
   // Counted per Google account once Google has confirmed who it is (the per-address limit is set high for campuses).
   await hitRateLimit('google-account', config.GOOGLE_SIGNINS_PER_ACCOUNT, 600, g.sub);
@@ -127,24 +152,34 @@ export async function signInWithGoogle(idToken: string, app: AppKind) {
     (await one<UserRow>(pool, 'SELECT * FROM users WHERE email = ?', [g.email]));
 
   if (user) {
-    if (user.google_sub && user.google_sub !== g.sub) throw forbidden('ACCOUNT_MISMATCH', 'This email is linked to a different Google account.');
-    checkApp(user, app);
+    try {
+      if (user.google_sub && user.google_sub !== g.sub) throw forbidden('ACCOUNT_MISMATCH', 'This email is linked to a different Google account.');
+      checkApp(user, app);
+    } catch (err) {
+      await recordLogin(user.user_id, app, meta, false, err instanceof AppError ? err.code : 'error');
+      throw err;
+    }
     if (!user.google_sub || user.email !== g.email) {
       await exec(pool, 'UPDATE users SET google_sub = ?, email = ? WHERE user_id = ?', [g.sub, g.email, user.user_id]);
       user = (await findUserById(user.user_id))!;
     }
+    await recordLogin(user.user_id, app, meta, true);
     return issueTokens(user);
   }
 
   if (app === 'vendor') {
     throw forbidden('NOT_A_VENDOR', 'This Google account is not registered to a stall. Ask the canteen manager to add it.');
   }
+  // Panel accounts are created by an admin first (Team & access); a Google account never becomes one by itself.
+  if (app === 'admin') throw forbidden('forbidden', 'This account does not have dashboard access.');
   const domain = g.email.split('@')[1];
-  if (config.STUDENT_EMAIL_DOMAINS.length && !config.STUDENT_EMAIL_DOMAINS.includes(domain)) {
-    throw forbidden('EMAIL_DOMAIN_NOT_ALLOWED', `Please sign in with your university email (${config.STUDENT_EMAIL_DOMAINS.map((d) => '@' + d).join(', ')}).`);
+  const domains = (await getSettings()).allowedEmailDomains; // admin panel: Alerts & security
+  if (domains.length && !domains.includes(domain)) {
+    throw forbidden('EMAIL_DOMAIN_NOT_ALLOWED', `Please sign in with your university email (${domains.map((d) => '@' + d).join(', ')}).`);
   }
   try {
     const r = await exec(pool, "INSERT INTO users (name, email, google_sub, role) VALUES (?, ?, ?, 'student')", [g.name, g.email, g.sub]);
+    await recordLogin(r.insertId, app, meta, true);
     return issueTokens((await findUserById(r.insertId))!);
   } catch (err) {
     if (isDuplicateKey(err)) {
@@ -162,20 +197,29 @@ export async function signInWithGoogle(idToken: string, app: AppKind) {
  * DEVELOPMENT ONLY (DEV_LOGIN=true): sign in without Google, as the demo student or as the vendor of a stall.
  * Lets teammates and the automated tests work before the Google Cloud project exists. Refused in production.
  */
-export async function devLogin(app: AppKind, stallId?: number) {
+export async function devLogin(app: AppKind, stallId?: number, panelRole: 'admin' | 'manager' = 'admin') {
   if (!config.DEV_LOGIN) throw notFound('NOT_FOUND', 'No such endpoint');
   const user =
     app === 'vendor'
       ? await one<UserRow>(pool, "SELECT * FROM users WHERE role = 'vendor' AND stall_id = ? AND is_active = TRUE ORDER BY user_id LIMIT 1", [stallId ?? 1])
-      : await one<UserRow>(pool, "SELECT * FROM users WHERE role = 'student' AND is_active = TRUE ORDER BY user_id LIMIT 1");
+      : app === 'admin'
+        ? await one<UserRow>(pool, 'SELECT * FROM users WHERE role = ? AND is_active = TRUE ORDER BY user_id LIMIT 1', [panelRole])
+        : await one<UserRow>(pool, "SELECT * FROM users WHERE role = 'student' AND is_active = TRUE ORDER BY user_id LIMIT 1");
   if (!user) throw badRequest('NO_DEMO_ACCOUNT', 'No demo account found. Run npm run db:reset.');
+  await recordLogin(user.user_id, app, { device: 'development login' }, true);
   return issueTokens(user);
 }
+
+/** The panel's dev-login buttons (GET /auth/options, only while DEV_LOGIN is on). */
+export const DEV_PANEL_ACCOUNTS = [
+  { key: 'admin', label: 'admin (every section)' },
+  { key: 'manager', label: 'manager (Main Canteen)' },
+];
 
 // ---------------------------------------------------------------- sessions
 
 /** Swaps a refresh token for a new pair. The old refresh token stops working (rotation). */
-export async function refresh(refreshToken: string) {
+export async function refresh(refreshToken: string, app?: AppKind) {
   const hash = sha256(refreshToken);
   const result = await exec(
     pool,
@@ -186,6 +230,7 @@ export async function refresh(refreshToken: string) {
   const row = await one<{ user_id: number; stall_id: number | null }>(pool, 'SELECT user_id, stall_id FROM refresh_tokens WHERE token_hash = ?', [hash]);
   const user = await findUserById(row!.user_id);
   if (!user) throw unauthorized();
+  if (app === 'admin' && user.role !== 'admin' && user.role !== 'manager') throw unauthorized();
   // A session opened for a chosen stall stays on that stall while the vendor may still open it (and it is active);
   // otherwise (old tokens, or access removed) it falls back to users.stall_id as before.
   const stall = row!.stall_id ? await accessibleStall(user.user_id, row!.stall_id) : undefined;
