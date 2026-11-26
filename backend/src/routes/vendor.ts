@@ -1,14 +1,42 @@
-import { Router } from 'express';
+import { type Request, type RequestHandler, Router } from 'express';
 import { z } from 'zod';
-import { badRequest } from '../errors.js';
+import { exec, one, pool } from '../db/pool.js';
+import { badRequest, forbidden, unauthorized } from '../errors.js';
 import { currentUser, requireAuth, requireRole } from '../middleware/auth.js';
+import { type VendorPermissions, tokenRevoked, vendorPermissions } from '../services/access.js';
 import { openVendorStallSession } from '../services/auth.js';
 import * as bills from '../services/bills.js';
 import { getVendorDashboard } from '../services/reports.js';
 import { parseId } from '../util.js';
 
 export const vendorRouter = Router();
-vendorRouter.use('/vendor', requireAuth, requireRole('vendor'));
+
+/**
+ * Every vendor request re-reads the account, so what the admin panel sets applies at once: a disabled vendor or one
+ * whose sessions were ended is signed out, and the five vendor permissions are enforced. Also records "last active".
+ */
+const loadVendor: RequestHandler = async (req, _res, next) => {
+  const user = currentUser(req);
+  const row = await one<{ is_active: number; sessions_revoked_at: Date | null; permissions: unknown }>(
+    pool,
+    'SELECT is_active, sessions_revoked_at, permissions FROM users WHERE user_id = ?',
+    [user.id],
+  );
+  if (!row || !row.is_active || tokenRevoked(req, row.sessions_revoked_at)) throw unauthorized('Your account was signed out by the canteen admin.');
+  withPerms(req).vendorPermissions = vendorPermissions(row.permissions);
+  await exec(pool, 'UPDATE users SET last_active_at = UTC_TIMESTAMP() WHERE user_id = ? AND (last_active_at IS NULL OR last_active_at < UTC_TIMESTAMP() - INTERVAL 1 MINUTE)', [user.id]);
+  next();
+};
+const withPerms = (req: Request) => req as Request & { vendorPermissions?: VendorPermissions };
+
+const allow =
+  (perm: keyof VendorPermissions, what: string): RequestHandler =>
+  (req, _res, next) => {
+    if (!withPerms(req).vendorPermissions?.[perm]) throw forbidden('PERMISSION_DENIED', `Your account is not allowed to ${what}. Ask the canteen admin.`);
+    next();
+  };
+
+vendorRouter.use('/vendor', requireAuth, requireRole('vendor'), loadVendor);
 
 const idParam = (value: unknown, what: string) => {
   const id = parseId(value);
@@ -45,7 +73,7 @@ vendorRouter.get('/vendor/stall', async (req, res) => {
 });
 
 /** Sales dashboard of my stall from real bills: today, this week (Mon-today) or this month, IST. */
-vendorRouter.get('/vendor/reports/dashboard', async (req, res) => {
+vendorRouter.get('/vendor/reports/dashboard', allow('viewEarnings', 'see earnings'), async (req, res) => {
   const period = z.enum(['today', 'this_week', 'this_month']).parse(String(req.query.period ?? 'today'));
   res.json(await getVendorDashboard(currentUser(req), period));
 });
@@ -60,7 +88,7 @@ vendorRouter.get('/vendor/bills/lookup', async (req, res) => {
   res.json(await bills.findBillByCode(currentUser(req), code));
 });
 
-vendorRouter.patch('/vendor/bills/:id/status', async (req, res) => {
+vendorRouter.patch('/vendor/bills/:id/status', allow('acceptOrders', 'accept or reject orders'), async (req, res) => {
   const body = z
     .object({
       status: z.enum(['accepted', 'preparing', 'ready', 'rejected']),
@@ -71,12 +99,12 @@ vendorRouter.patch('/vendor/bills/:id/status', async (req, res) => {
   res.json(await bills.setBillStatus(currentUser(req), idParam(req.params.id, 'bill'), body));
 });
 
-vendorRouter.post('/vendor/bills/:id/handover', async (req, res) => {
+vendorRouter.post('/vendor/bills/:id/handover', allow('acceptOrders', 'hand over orders'), async (req, res) => {
   const body = z.object({ code: pickupCode }).parse(req.body);
   res.json(await bills.handover(currentUser(req), idParam(req.params.id, 'bill'), body.code));
 });
 
-vendorRouter.patch('/vendor/products/:id', async (req, res) => {
+vendorRouter.patch('/vendor/products/:id', allow('editMenu', 'change the menu'), async (req, res) => {
   const body = z
     .object({ stockQuantity: z.number().int().min(0).max(10000).optional(), isActive: z.boolean().optional() })
     .refine((b) => b.stockQuantity !== undefined || b.isActive !== undefined, 'Send stockQuantity and/or isActive')

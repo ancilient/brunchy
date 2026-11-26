@@ -55,6 +55,11 @@ services:
       DB_USER: brunchy
       DB_NAME: brunchy
       REDIS_URL: redis://redis:6379/0
+      # Photos uploaded from the admin panel land in deploy/uploads, which Caddy serves at /uploads/.
+      UPLOADS_DIR: /app/uploads
+      PUBLIC_UPLOADS_URL: https://${API_DOMAIN}/uploads
+    volumes:
+      - ./uploads:/app/uploads   # writable by the container user (uid 1000): chown 1000:1000 deploy/uploads
     depends_on:
       mysql: { condition: service_healthy }
       redis: { condition: service_healthy }

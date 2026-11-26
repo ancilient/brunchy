@@ -30,6 +30,9 @@ export function attachRealtime(server: HttpServer) {
     const user = socket.data.user;
     socket.join(`user:${user.id}`);
     if (user.role === 'vendor' && user.stallId) socket.join(`stall:${user.stallId}`);
+    // Admin panel: admins see every bill, managers their canteen's.
+    if (user.role === 'admin') socket.join('admin');
+    if (user.role === 'manager' && user.canteenId) socket.join(`canteen:${user.canteenId}`);
   });
   return io;
 }
@@ -47,6 +50,7 @@ export async function publishBills(billIds: number[], event: 'bill.new' | 'bill.
     for (const { userId, ...bill } of bills) {
       io.to(`stall:${bill.stallId}`).emit(event, bill);
       io.to(`user:${userId}`).emit('bill.updated', bill);
+      io.to('admin').to(`canteen:${bill.canteenId}`).emit(event, { id: bill.id }); // the panel re-fetches
     }
   } catch (err) {
     logger.error({ err }, 'publishBills failed');

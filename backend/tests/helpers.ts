@@ -9,6 +9,7 @@ import { MOCK_SIGNATURE_HEADER, signMockBody } from '../src/payments/mockGateway
 import { attachRealtime, closeRealtime } from '../src/realtime.js';
 import { redis } from '../src/redis.js';
 import { setFreeOrdersForTests } from '../src/services/fees.js';
+import { clearSettingsCache } from '../src/services/settings.js';
 
 const quiet = () => undefined;
 
@@ -18,6 +19,7 @@ export async function resetDb() {
   await migrate(quiet);
   await seed(quiet);
   await redis.flushdb();
+  clearSettingsCache();
   // Fees always on in tests; tests/fees.test.ts switches the free first orders back on.
   setFreeOrdersForTests(0);
 }
@@ -87,6 +89,7 @@ export function api(baseUrl: string) {
     get: (path: string, token?: string) => call('GET', path, undefined, token),
     post: (path: string, body: unknown, token?: string, headers?: Record<string, string>) => call('POST', path, body, token, headers),
     patch: (path: string, body: unknown, token?: string) => call('PATCH', path, body, token),
+    put: (path: string, body: unknown, token?: string) => call('PUT', path, body, token),
     delete: (path: string, token?: string) => call('DELETE', path, undefined, token),
   };
 }
