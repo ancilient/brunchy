@@ -69,6 +69,18 @@ docker compose -f docker-compose.prod.yml exec api node dist/db/set-vendor-email
   `payment.captured` and `payment.failed`, set a secret, put it in `RAZORPAY_WEBHOOK_SECRET`, then restart the API.
 - **Uptime alert:** add a free monitor (e.g. UptimeRobot) for `https://<API_DOMAIN>/api/v1/health`.
 
+## Admin dashboard
+Caddy serves the dashboard at `https://<ADMIN_DOMAIN>` from `deploy/admin`, and passes `/api` and `/socket.io` on
+that address to the API (one address, so the sign-in cookie is first-party).
+1. `deploy/.env`: set `ADMIN_DOMAIN`, and `ADMIN_ORIGINS=https://<ADMIN_DOMAIN>`.
+2. Google Cloud → Credentials → the Web client → **Authorised JavaScript origins**: add `https://<ADMIN_DOMAIN>`.
+3. Build on your PC (in `admin_web`), pointing at the dashboard's own address:
+   `VITE_API_URL=https://<ADMIN_DOMAIN>/api/v1 VITE_GOOGLE_CLIENT_ID=<Web client ID> npm run build`
+4. Upload: `scp -r dist/* root@<server-ip>:/opt/brunchy/deploy/admin/` (replace the old files first:
+   `ssh root@<server-ip> "rm -rf /opt/brunchy/deploy/admin/*"`). No restart needed for a new upload.
+5. First time only: `docker compose -f docker-compose.prod.yml up -d caddy api`.
+6. Sign in with a Google account that is a panel account (admins are added under Team & access).
+
 ## Everyday commands (run in /opt/brunchy/deploy)
 | Task | Command |
 |---|---|

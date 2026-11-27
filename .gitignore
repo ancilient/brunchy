@@ -32,6 +32,10 @@ Thumbs.db
 docs/client-reference/*
 !docs/client-reference/README.md
 
+# ---- Admin dashboard build uploaded to the server (deploy/admin) ----
+deploy/admin/*
+!deploy/admin/.gitkeep
+
 # ---- Food photos uploaded on the server (deploy/uploads) ----
 deploy/uploads/*
 !deploy/uploads/.gitkeep
