@@ -74,9 +74,11 @@ services:
       - "443:443/udp"
     environment:
       API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in deploy/.env}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN in deploy/.env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./uploads:/srv/uploads:ro   # food photos (see docs/admin-guide.md)
+      - ./admin:/srv/admin:ro       # admin dashboard build (admin_web/dist), see deploy/README.md
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
